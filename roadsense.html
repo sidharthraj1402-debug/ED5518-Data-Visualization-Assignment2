@@ -1,0 +1,1168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#161d25">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="RoadSense: one trip, three engineering views. Road condition with a pothole map, passenger ride comfort, and a driving score, from your phone's sensors.">
+<title>RoadSense</title>
+<script>try{document.documentElement.dataset.palette=(localStorage.getItem("fieldkit.theme")==="day")?"day":"night";}catch(e){document.documentElement.dataset.palette="night";}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  color-scheme: light;
+  --ground:#f3f4f1; --card:#ffffff; --shell:#e4f01e; --on-shell:#14181f; --shell-line:#14181f;
+  --hv:#e4f01e; --on-hv:#14181f; --ink:#14181f; --muted:#4b535f; --grid:#e3e5e1; --line:#14181f; --fill:#14181f; --on-fill:#e4f01e; --casing:#14181f;
+  --silver:#c9cdd2; --silver2:#dadde1; --band-ink:#14181f; --ghost:rgba(20,24,31,.13); --track:rgba(20,24,31,.12); --sheen:rgba(255,255,255,.8);
+  --alert:#ff5a1f; --on-alert:#14181f; --pass:#16833a; --on-pass:#ffffff;
+  --dock:#14181f; --on-dock:#ffffff; --dock-muted:#8d949e; --dock-off:#4b535f; --go-off:#59605e; --go-off-ink:#c9cdd2; --wait1:#2b3038; --wait2:#3a414b;
+  --over:rgba(255,90,31,.16); --zone:rgba(228,240,30,.5); --ev-brake:#d62839; --ev-start:#c99a00; --ev-turn:#6250d6;
+  --r-good:#1f9d55; --r-fair:#e3b505; --r-poor:#f06a1d; --r-vpoor:#d62839; --r-slow:#8d949e;
+  --b0:#eea064; --b1:#e6803f; --b2:#d9612a; --b3:#bf4520; --b4:#9a2e1a; --b5:#6e1b13;
+  --cond:"Barlow Condensed","Arial Narrow",sans-serif;
+  --sans:"Barlow",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+:root[data-palette="night"]{
+  color-scheme: dark;
+  --ground:#0e1318; --card:#161d25; --shell:#161d25; --on-shell:#e4f01e; --shell-line:#e4f01e;
+  --hv:#e4f01e; --on-hv:#0e1318; --ink:#e8ecf0; --muted:#9aa7b4; --grid:#26313d; --line:#5f6d7c; --fill:#e4f01e; --on-fill:#0e1318; --casing:#0e1318;
+  --band-ink:#0e1318; --ghost:rgba(14,19,24,.16); --track:rgba(14,19,24,.15); --sheen:rgba(255,255,255,.85);
+  --alert:#ff6a2b; --on-alert:#0e1318; --pass:#33b35f; --on-pass:#0e1318;
+  --dock:#080b0f; --on-dock:#e8ecf0; --dock-muted:#7d8995; --dock-off:#3b4756; --go-off:#2a333d; --go-off-ink:#7d8995; --wait1:#1e252e; --wait2:#2b343f;
+  --over:rgba(255,106,43,.2); --zone:rgba(228,240,30,.22); --ev-brake:#ff4757; --ev-start:#f0c419; --ev-turn:#9085e9;
+  --r-good:#33b35f; --r-fair:#f0c419; --r-poor:#ff7a33; --r-vpoor:#ff4757; --r-slow:#7d8995;
+  --b0:#f7c99c; --b1:#f3aa70; --b2:#ee8b4b; --b3:#e2692e; --b4:#cc5121; --b5:#ad3d1a;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 var(--sans);-webkit-tap-highlight-color:transparent}
+::selection{background:var(--hv);color:var(--on-hv)}
+:focus-visible{outline:3px solid var(--hv);outline-offset:2px}
+button{font-family:inherit;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;border-radius:0}
+input{font-family:inherit;color:var(--ink)}
+.hide{display:none!important}
+.app{max-width:640px;margin:0 auto;min-height:100vh;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+
+/* ---------- header, trip strip, tabs ---------- */
+header.top{position:sticky;top:0;z-index:1000;background:var(--shell);color:var(--on-shell);border-bottom:4px solid var(--shell-line);padding:calc(env(safe-area-inset-top) + 10px) 16px 0}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand h1{margin:0;font:800 30px/1 var(--cond);text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.brand h1 i{display:block;width:28px;height:18px;border-top:3px solid currentColor;border-bottom:3px solid currentColor;background:repeating-linear-gradient(90deg,var(--silver) 0 4px,var(--silver2) 4px 8px)}
+.theme{display:grid;grid-template-columns:1fr 1fr;border:2px solid currentColor}
+.theme button{min-height:36px;min-width:52px;border:0;background:transparent;color:var(--on-shell);font:800 12px var(--cond);text-transform:uppercase;letter-spacing:.06em}
+.theme button[aria-pressed="true"]{background:var(--on-shell);color:var(--shell)}
+.strip{margin-top:10px;min-height:44px;display:flex;align-items:center;gap:8px}
+.strip .vlab{font:800 13px var(--cond);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.vehs{display:grid;grid-template-columns:repeat(4,1fr);flex:1;border:2px solid var(--on-shell)}
+.vehs button{min-height:38px;border:0;border-right:2px solid var(--on-shell);background:transparent;color:var(--on-shell);font:800 14px var(--cond);text-transform:uppercase;letter-spacing:.03em;padding:0 2px}
+.vehs button:last-child{border-right:0}
+.vehs button[aria-pressed="true"]{background:var(--on-shell);color:var(--shell)}
+.rec{display:none;align-items:center;gap:10px;flex:1;font:800 16px/1 var(--cond);text-transform:uppercase;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.rec i{width:12px;height:12px;background:var(--alert);flex:none;animation:blink 1.2s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+.recording .vehs,.recording .vlab{display:none}
+.recording .rec{display:flex}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);margin-top:6px}
+.tabs button{min-height:46px;border:0;background:transparent;color:var(--on-shell);font:800 14px var(--cond);text-transform:uppercase;letter-spacing:.03em;border-bottom:4px solid transparent;margin-bottom:-4px;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 2px}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--on-shell)}
+.tabs b{display:none;min-width:24px;padding:4px 7px;background:var(--on-shell);color:var(--shell);font:800 12px/14px var(--cond);text-align:center}
+.tabs b.on{display:inline-block}
+.panel{display:none}.panel.on{display:block}
+
+/* ---------- reading band ---------- */
+.band{position:relative;overflow:hidden;margin-top:16px;background:repeating-linear-gradient(90deg,var(--silver) 0 6px,var(--silver2) 6px 12px);border-top:3px solid var(--band-ink);border-bottom:3px solid var(--band-ink);color:var(--band-ink);padding:12px 16px 8px}
+.band .row{display:flex;align-items:center;gap:8px;font:800 15px/1 var(--cond);text-transform:uppercase;letter-spacing:.06em;position:relative;z-index:1}
+.mark{width:16px;height:16px;border:3px solid var(--band-ink);flex:none}
+.band[data-state="rec"] .mark{background:var(--band-ink)}
+.band[data-state="done"] .mark{background:var(--band-ink);box-shadow:inset 0 0 0 3px var(--silver2)}
+.band[data-state="alert"] .mark{background:var(--alert)}
+.band .val{display:flex;align-items:baseline;justify-content:space-between;gap:10px;position:relative;z-index:1}
+.band .num{font:800 92px/.92 var(--cond);font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap}
+.band .num.empty::before{content:attr(data-g);color:var(--ghost)}
+::placeholder{color:var(--muted);opacity:1}
+.band .unit{font:800 16px/1.1 var(--cond);text-transform:uppercase;text-align:right}
+.band[data-state="rec"]::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,var(--sheen) 48%,var(--sheen) 52%,transparent 70%);transform:translateX(-110%);animation:sheen 2.4s cubic-bezier(.16,1,.3,1) infinite}
+@keyframes sheen{to{transform:translateX(110%)}}
+.bprog{position:absolute;left:0;right:0;bottom:0;height:7px;z-index:2;background:var(--track);opacity:0;transition:opacity .2s}
+.bprog.on{opacity:1}
+.bprog i{display:block;height:100%;width:0;background:var(--band-ink)}
+.bprog.indef i{width:100%;background:repeating-linear-gradient(-45deg,var(--band-ink) 0 8px,var(--hv) 8px 16px);background-size:22.63px 22.63px;animation:hazard .7s linear infinite}
+@keyframes hazard{to{background-position:22.63px 0}}
+.meaning{margin:12px 16px 0;font:600 17px/1.35 var(--sans)}
+.verdict{display:inline-flex;align-items:center;gap:8px;font:800 16px/1 var(--cond);text-transform:uppercase;letter-spacing:.04em;padding:7px 10px;background:var(--fill);color:var(--on-fill)}
+.verdict.pass{background:var(--pass);color:var(--on-pass)}
+.verdict.fail{background:var(--alert);color:var(--on-alert)}
+.verdict svg{width:16px;height:16px}
+.rate{display:inline-flex;align-items:center;gap:6px;font:800 13px/1 var(--cond);text-transform:uppercase;letter-spacing:.05em;padding:6px 9px;color:#0e1318}
+.rate svg{width:13px;height:13px}
+.r-good{background:var(--r-good)} .r-fair{background:var(--r-fair)} .r-poor{background:var(--r-poor)} .r-vpoor{background:var(--r-vpoor);color:#fff} .r-slow{background:var(--r-slow)}
+
+/* ---------- content ---------- */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:2px solid var(--line);background:var(--card);margin:14px 16px 0}
+.tiles>div{padding:8px 10px 9px;border-right:2px solid var(--line);min-width:0}
+.tiles>div:last-child{border-right:0}
+.tiles b{display:block;font:800 30px/1.05 var(--cond);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tiles span{display:block;font:600 12px/1.25 var(--sans);text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.card{background:var(--card);border:2px solid var(--line);margin:14px 16px 0;padding:12px}
+.card h2{font:800 17px/1.2 var(--cond);text-transform:uppercase;letter-spacing:.05em;margin:0 0 2px}
+.cap{font:400 14px/1.4 var(--sans);color:var(--muted);margin:0 0 8px}
+.status{font:500 14px/1.4 var(--sans);color:var(--muted);margin:10px 16px 0;min-height:1.4em}
+.status b{color:var(--ink)}
+canvas{display:block;width:100%}
+.take{display:flex;gap:8px;font:700 15.5px/1.35 var(--sans);margin:2px 0 10px;color:var(--ink)}
+.take::before{content:"";flex:none;width:10px;height:10px;margin-top:5px;background:var(--hv)}
+.take:empty{display:none}
+.hint{font:600 12.5px var(--sans);color:var(--muted);margin:6px 0 0}
+.mode{display:grid;grid-template-columns:1fr 1fr;border:2px solid var(--line);margin:14px 16px 0;background:var(--card)}
+.mode button{min-height:46px;padding:6px 12px;border:0;border-right:2px solid var(--line);background:transparent;font:800 16px var(--cond);text-transform:uppercase;letter-spacing:.04em}
+.mode button:last-child{border-right:0}
+.mode button[aria-pressed="true"]{background:var(--fill);color:var(--on-fill)}
+.step{font:800 22px/1.1 var(--cond);text-transform:uppercase;margin:22px 16px 0;padding-top:10px;border-top:3px solid var(--line)}
+.pad{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;height:200px;display:flex;align-items:center;justify-content:center;text-align:center;font:800 28px/1.15 var(--cond);text-transform:uppercase;background:var(--ground);border:2px solid var(--line);padding:12px;white-space:pre-line}
+.pad.wait{background:var(--dock);color:var(--on-dock)}
+.pad.go{background:var(--pass);color:var(--on-pass)}
+.pad.early{background:var(--alert);color:var(--on-alert)}
+.progress{height:10px;background:var(--ground);border:2px solid var(--line);margin-top:10px}
+.progress div{height:100%;width:0;background:var(--fill)}
+.count{font:800 36px/1.1 var(--cond);text-align:center;margin:8px 0 0;font-variant-numeric:tabular-nums;min-height:40px}
+.pair{margin:10px 0 14px}
+.pair .lab{font:700 15px var(--sans);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
+.pair .lab span{font-weight:500;color:var(--muted)}
+.bar{display:grid;grid-template-columns:70px 1fr;align-items:center;gap:8px;font:600 14px var(--sans);margin:4px 0;font-variant-numeric:tabular-nums}
+.bar .t{color:var(--muted);font:700 13px var(--cond);text-transform:uppercase}
+.bar .track{display:flex;align-items:center;gap:8px}
+.bar .f{height:16px;min-width:2px}
+.bar .f.base{background:repeating-linear-gradient(90deg,var(--silver) 0 4px,#b3b8be 4px 8px);border:1px solid var(--line)}
+.bar .f.now{background:var(--fill)}
+.tscale{position:relative;margin:16px 0 6px}
+.tscale .z{display:grid;grid-template-columns:4fr 6fr 5fr;gap:2px;height:18px}
+.tscale .z div{height:100%}
+.tscale .lab{display:grid;grid-template-columns:4fr 6fr 5fr;font:800 12px/1.2 var(--cond);text-transform:uppercase;text-align:center;color:var(--muted);margin-top:4px}
+.tscale .pin{position:absolute;top:-12px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:12px solid var(--ink);transform:translateX(-9px);transition:left .25s ease-out}
+.tscale .base{position:absolute;top:-4px;bottom:22px;width:0;border-left:3px dashed var(--ink)}
+#trTarget{max-width:320px;margin:6px auto 0}
+.lost{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:8px 10px;margin:8px 0}
+.lost svg{width:20px;height:20px}
+.lost .nm{font:700 15px var(--sans)}
+.lost .nm small{display:block;font:500 13px var(--sans);color:var(--muted)}
+.lost .v{font:800 20px var(--cond);font-variant-numeric:tabular-nums}
+.lost .tr{grid-column:2/4;height:10px;background:var(--ground);border:1px solid var(--grid)}
+.lost .tr i{display:block;height:100%}
+.spdz{display:flex;gap:2px;height:22px;border:2px solid var(--line);margin:10px 0 6px}
+.spdz div{height:100%}
+.evleg{display:flex;flex-wrap:wrap;gap:6px 14px;font:600 13px var(--sans);color:var(--muted);margin-top:8px}
+.evleg span{display:inline-flex;align-items:center;gap:6px}
+.evleg svg{width:14px;height:14px}
+#dmap{height:280px;background:var(--ground)}
+.callout{background:var(--ground);border:2px solid var(--line);padding:10px 12px;margin-top:6px}
+.start{border:2px dashed var(--line);background:transparent}
+.start ol{margin:6px 0 0;padding-left:22px;font:600 16px/1.5 var(--sans)}
+#map{height:330px;background:var(--ground)}
+.mapwrap{position:relative}
+.maploading{position:absolute;inset:0;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--ground);font:800 15px var(--cond);text-transform:uppercase;letter-spacing:.06em;transition:opacity .3s}
+.maploading i{display:block;width:140px;height:10px;border:2px solid var(--line);background:repeating-linear-gradient(-45deg,var(--ink) 0 8px,var(--hv) 8px 16px);background-size:22.63px 22.63px;animation:hazard .7s linear infinite}
+.maploading.gone{opacity:0;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px;font:600 13px var(--sans);color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:22px;height:8px}
+.legend i.pot{width:12px;height:12px;border-radius:50%;background:var(--casing);box-shadow:0 0 0 2px var(--hv)}
+.scale{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin:14px 0 4px;position:relative}
+.scale div{height:16px}
+.ptr{position:absolute;top:-10px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid var(--ink);transform:translateX(-8px);transition:left .25s ease-out}
+.scalelab{display:grid;grid-template-columns:repeat(6,1fr);font:700 12px/1.15 var(--cond);text-transform:uppercase;text-align:center;color:var(--muted)}
+.stack{display:flex;gap:2px;height:26px;border:2px solid var(--line);background:var(--ground);margin:8px 0}
+.stack div{height:100%}
+table{width:100%;border-collapse:collapse;font:500 14.5px/1.3 var(--sans);font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--grid);vertical-align:middle}
+th{font:700 12.5px var(--cond);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--line)}
+td.r,th.r{text-align:right}
+.sw{display:inline-block;width:12px;height:12px;vertical-align:-1px;margin-right:6px;border:1px solid var(--line)}
+.btn2{min-height:44px;border:2px solid var(--line);background:var(--card);font:800 15px var(--cond);text-transform:uppercase;letter-spacing:.04em;padding:6px 10px}
+.btn2.sm{min-height:36px;font-size:13px;padding:6px 10px;vertical-align:middle}
+.btn2.sm svg{width:14px;height:14px;display:block}
+.btn2[aria-pressed="true"]{background:var(--fill);color:var(--on-fill)}
+.btn2:disabled{opacity:.4}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.numrow{display:flex;align-items:center;gap:10px}
+.numrow .u{font:800 16px var(--cond);text-transform:uppercase}
+input[type=number],input[type=text]{font:700 18px var(--sans);border:2px solid var(--line);background:var(--card);padding:8px 10px;border-radius:0}
+input[type=number]{width:110px}
+input[type=text]{width:100%}
+label.field{display:block;font:600 14px var(--sans);margin:0 0 4px}
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:2px solid var(--line);background:var(--card);margin:14px 16px 0}
+.sum button{border:0;border-right:2px solid var(--line);background:transparent;padding:10px 10px 12px;text-align:left;min-height:110px}
+.sum button:last-child{border-right:0}
+.sum span{display:block;font:800 13px var(--cond);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.sum b{display:block;font:800 40px/1 var(--cond);font-variant-numeric:tabular-nums;margin:6px 0}
+.sum em{font-style:normal}
+.empty{font:700 15px var(--cond);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:center;padding:24px 8px}
+details.how{margin:16px 16px 0;border-top:3px solid var(--line);padding-top:4px}
+details.how summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;font:800 17px var(--cond);text-transform:uppercase;letter-spacing:.05em;list-style:none;cursor:pointer}
+details.how summary::-webkit-details-marker{display:none}
+details.how h3{font:800 16px var(--cond);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px}
+details.how p,details.how li{font-size:15px;max-width:62ch}
+details.how ol,details.how ul{padding-left:20px;margin:0 0 8px}
+
+/* ---------- dock ---------- */
+.actions{position:fixed;left:0;right:0;bottom:0;z-index:1001;background:var(--dock);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.actions .in{max-width:608px;margin:0 auto;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+.actions button{min-height:54px;font:800 18px/1 var(--cond);text-transform:uppercase;letter-spacing:.05em;border:0;padding:0 8px}
+.go{background:var(--hv);color:var(--on-hv)}
+.go:disabled{background:var(--go-off);color:var(--go-off-ink)}
+.go.wait{background:repeating-linear-gradient(-45deg,var(--wait1) 0 8px,var(--wait2) 8px 16px);background-size:22.63px 22.63px;animation:hazard .7s linear infinite;color:var(--hv)}
+.stopb{background:var(--alert);color:var(--on-alert)}
+.stopb:disabled{background:transparent;color:var(--dock-muted);box-shadow:inset 0 0 0 2px var(--dock-off)}
+.sec{background:transparent;color:var(--on-dock);box-shadow:inset 0 0 0 2px var(--dock-muted)}
+.sec:disabled{opacity:.4}
+.warn{background:var(--alert);color:var(--on-alert);font:600 15px var(--sans);padding:12px 16px}
+@media (min-width:1000px){ body{background:var(--dock)} .app{background:var(--ground);box-shadow:0 0 0 4px var(--shell-line)} .actions{left:50%;right:auto;width:640px;transform:translateX(-50%)} }
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+@media print{
+  header.top,.actions,.noprint,#pRoad,#pComfort,#pDrive,#pSaved{display:none!important}
+  #pReport{display:block!important}
+  body,.app{background:#fff!important;color:#000!important;padding:0!important}
+  .card,.sum{break-inside:avoid;border-color:#000}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<div id="secure" class="warn hide">This page isn't on a secure (https) link, so the phone won't share its motion sensor or GPS. Open the GitHub Pages link instead.</div>
+<header class="top" id="hdr">
+  <div class="brand"><h1><i aria-hidden="true"></i>RoadSense</h1>
+    <div class="theme" role="group" aria-label="Colour mode"><button type="button" data-theme="day">Day</button><button type="button" data-theme="night">Night</button></div></div>
+  <div class="strip">
+    <span class="vlab">Vehicle</span>
+    <div class="vehs" role="group" aria-label="Vehicle"><button data-veh="car" aria-pressed="false">Car</button><button data-veh="auto" aria-pressed="true">Auto</button><button data-veh="bus" aria-pressed="false">Bus</button><button data-veh="bike" aria-pressed="false">2-wheel</button></div>
+    <div class="rec" aria-live="polite"><i aria-hidden="true"></i><span id="recTxt">REC 0:00</span></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-p="pRoad" aria-selected="true">Road<b id="bdRoad"></b></button>
+    <button role="tab" data-p="pComfort" aria-selected="false">Comfort<b id="bdCom"></b></button>
+    <button role="tab" data-p="pDrive" aria-selected="false">Driving<b id="bdDrv"></b></button>
+    <button role="tab" data-p="pReport" aria-selected="false">Report</button>
+    <button role="tab" data-p="pSaved" aria-selected="false">Saved</button>
+  </nav>
+</header>
+
+<!-- ============ ROAD ============ -->
+<section class="panel on" id="pRoad">
+  <div class="band" id="bRoad" data-state="idle" data-ghost="00"><div class="row"><span class="mark"></span><span class="lbl">Road · ready</span></div><div class="val"><span class="num empty" data-g="00"></span><span class="unit">ride quality<br>this 100 m</span></div></div>
+  <div class="meaning" id="mRoad"></div>
+  <div class="card start" id="howStart">
+    <h2>Start a trip in 3 steps</h2>
+    <ol><li>Pick your vehicle at the top.</li><li>Rest the phone flat on the seat or dashboard. In a holder, face it forward.</li><li>Tap <b>Start trip</b> and ride normally. All three tabs fill in from the same trip.</li></ol>
+  </div>
+  <div class="tiles"><div><b id="tSpd">–</b><span>km/h</span></div><div><b id="tKm">0.00</b><span>km</span></div><div><b id="tPot">0</b><span>potholes</span></div></div>
+  <div class="status" id="status"></div>
+  <div class="card">
+    <h2>Road condition map</h2>
+    <p class="cap">Each 100 m is coloured by its rating. Dark dots are potholes; tap one for details.</p>
+    <div class="mapwrap"><div id="map"></div><div class="maploading" id="mapLoad"><span>Loading map</span><i></i></div></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="card">
+    <h2>3D road</h2>
+    <p class="cap">The route as driven, with a column on each 100 m: taller means rougher. Pins mark potholes. Drag to turn it; double-tap to reset.</p>
+    <canvas id="road3dC" aria-label="3D view of road roughness along the route"></canvas>
+  </div>
+  <div class="card">
+    <h2>Score along the road</h2>
+    <p class="take" id="tkProf"></p>
+    <p class="cap">Ride Quality Score (0–100) of each 100 m against distance. Lower is worse.</p>
+    <canvas id="profC" aria-label="Ride quality score along the road"></canvas>
+    <p class="hint">Slide a finger across the chart to read any stretch.</p>
+  </div>
+  <div class="card">
+    <h2>Vertical jolts · last 15 s</h2>
+    <p class="take" id="tkJolt"></p>
+    <p class="cap">Up–down acceleration (m/s²). Jolts past the dashed lines count as potholes.</p>
+    <canvas id="joltC" aria-label="Vertical acceleration over the last 15 seconds"></canvas>
+  </div>
+</section>
+
+<!-- ============ COMFORT ============ -->
+<section class="panel" id="pComfort">
+  <div class="band" id="bCom" data-state="idle" data-ghost="0.00"><div class="row"><span class="mark"></span><span class="lbl">Comfort · ready</span></div><div class="val"><span class="num empty" data-g="0.00"></span><span class="unit">m/s²<br>ISO total</span></div></div>
+  <div class="meaning" id="mCom"><span class="verdict" id="cmVerdict">Start a trip to rate comfort</span></div>
+  <div class="card" style="padding-bottom:12px">
+    <h2>Passenger comfort · ISO 2631-1</h2>
+    <div class="scale" id="cmScale"><span class="ptr" id="cmPtr" style="left:0"></span></div>
+    <div class="scalelab"><span>Smooth</span><span>Slight</span><span>Fair</span><span>Rough</span><span>Very rough</span><span>Extreme</span></div>
+  </div>
+  <div class="tiles"><div><b id="cmZ">–</b><span>m/s² up–down</span></div><div><b id="cmXY">–</b><span>m/s² sway</span></div><div><b id="cmH">0</b><span>harsh moves</span></div></div>
+  <div class="card">
+    <h2>Comfort over the trip</h2>
+    <p class="take" id="tkCom"></p>
+    <p class="cap">ISO total vibration (m/s², 5 s RMS) against time. The shaded bands are the six comfort levels; dots are harsh moves.</p>
+    <canvas id="cmTripC" aria-label="Comfort value over the trip"></canvas>
+    <p class="hint">Slide a finger across the chart to read any moment.</p>
+  </div>
+  <div class="card">
+    <h2>Pushes and swerves · last 60 s</h2>
+    <p class="take" id="tkGG"></p>
+    <p class="cap">Each dot is how hard the vehicle pushed you: up–down = speeding up or braking, sideways = turning. Past the dashed 2.5 m/s² ring, standing passengers need to hold on.</p>
+    <canvas id="cmGG" aria-label="Acceleration diagram: forward-back against sideways"></canvas>
+  </div>
+  <div class="card">
+    <h2>Time at each comfort level</h2>
+    <div class="stack" id="cmStack" aria-label="Share of trip time in each comfort band"></div>
+    <table><tbody id="cmTable"></tbody></table>
+  </div>
+</section>
+
+<!-- ============ DRIVING ============ -->
+<section class="panel" id="pDrive">
+  <div class="mode" role="group" aria-label="Driving view"><button data-dm="trip" aria-pressed="true">Trip score</button><button data-dm="fit" aria-pressed="false">Fit to drive</button></div>
+  <div id="drvTrip">
+  <div class="band" id="bDrv" data-state="idle" data-ghost="000"><div class="row"><span class="mark"></span><span class="lbl">Driving · ready</span></div><div class="val"><span class="num empty" data-g="000"></span><span class="unit">score<br>out of 100</span></div></div>
+  <div class="meaning" id="mDrv">A passenger should hold the phone. The score counts harsh moves and speeding.</div>
+  <div class="card">
+    <h2>Driving score</h2>
+    <p class="take" id="tkGaugeD"></p>
+    <canvas id="dGauge" aria-label="Driving score dial from 0 to 100"></canvas>
+  </div>
+  <div class="tiles"><div><b id="dKm">0.0</b><span>km driven</span></div><div><b id="dEv">0</b><span>harsh moves</span></div><div><b id="dSp">0</b><span>s speeding</span></div></div>
+  <div class="card">
+    <label class="field" for="limit">Speed limit on this road</label>
+    <div class="numrow"><input type="number" id="limit" value="50" min="10" max="140" step="5" inputmode="numeric"><span class="u">km/h</span></div>
+  </div>
+  <div class="card">
+    <h2>Speed over the trip</h2>
+    <p class="take" id="tkSpd"></p>
+    <p class="cap">GPS speed (km/h) against time. Dashed: the limit; orange shading: over the limit.</p>
+    <canvas id="dSpdC" aria-label="Speed against time"></canvas>
+    <div class="evleg" id="evLeg"></div>
+    <h2 style="margin-top:14px">Time at each speed</h2>
+    <div class="spdz" id="spdZ" aria-label="Share of trip time under, near and well over the limit"></div>
+    <div class="evleg" id="spdZL"></div>
+    <p class="hint">Slide a finger across the chart to read the speed at any moment.</p>
+  </div>
+  <div class="card">
+    <h2>Where the points went</h2>
+    <p class="take" id="tkPts"></p>
+    <div id="dPts"></div>
+    <p class="cap" style="margin-top:6px">Score = 100 − points lost. A harsh move is a push over 2.5 m/s² (about 0.25 g) for 0.3 s or more.</p>
+  </div>
+  <div class="card">
+    <h2>Where the harsh moves happened</h2>
+    <p class="cap">Your route, with each harsh move marked where it happened. Tap a marker for details.</p>
+    <div class="mapwrap"><div id="dmap"></div><div class="maploading" id="dmapLoad"><span>Map appears after the first GPS fix</span></div></div>
+    <div class="evleg" id="evLeg2"></div>
+  </div>
+  <div class="card">
+    <h2>Harsh moves</h2>
+    <table><thead><tr><th>#</th><th>At</th><th>Move</th><th class="r">Peak</th><th class="r">Speed</th></tr></thead><tbody id="dEvT"><tr><td colspan="5" class="cap">None yet.</td></tr></tbody></table>
+  </div>
+  </div>
+  <div id="drvFit" class="hide">
+    <div class="band" id="bFit" data-state="idle" data-ghost="0.000"><div class="row"><span class="mark"></span><span class="lbl">Hand tremor · ready</span></div><div class="val"><span class="num empty" data-g="0.000"></span><span class="unit">m/s²<br>3–20 Hz</span></div></div>
+    <div class="meaning" id="mFit">Before a long drive, check the driver is steady and alert. Do both tests once while rested and save them as a baseline. Test again when tired.</div>
+    <h2 class="step">1 · Hand tremor</h2>
+    <div class="card">
+      <p class="cap">Hold the phone in one hand at arm's length, screen facing you, elbow off any support. Keep it as still as you can for 10 seconds.</p>
+      <canvas id="trTarget" aria-label="Steadiness target: your hand's wobble inside steady, normal and shaky rings"></canvas>
+      <div class="count" id="trCount" aria-live="polite"></div>
+      <div class="progress"><div id="trProg"></div></div>
+      <div class="grid2" style="grid-template-columns:1fr 1fr"><button class="btn2" id="trBtn">Start 10 s test</button><button class="btn2" id="trStop" disabled>Stop test</button></div>
+      <p class="status" id="trStatus" style="margin:8px 0 0"></p>
+    </div>
+    <div id="trOut" class="hide">
+      <div class="tiles"><div><b id="trRms">–</b><span>m/s² shake</span></div><div><b id="trPk">–</b><span>Hz main beat</span></div><div><b id="trFs">–</b><span>readings/s</span></div></div>
+      <div class="card">
+        <h2>How steady is the hand?</h2>
+        <p class="take" id="tkGauge"></p>
+        <div class="tscale" id="trScale"><div class="z" id="trZ"><div style="background:var(--r-good)"></div><div style="background:var(--r-fair)"></div><div style="background:var(--r-poor)"></div></div><div class="lab" id="trZL"><span>Steady</span><span>Normal</span><span>Shaky</span></div><span class="pin" id="trPin" style="left:0"></span></div>
+        <p class="cap" style="margin-top:8px" id="trZCap"></p>
+      </div>
+      <div class="card">
+        <h2>Which frequencies the shake is made of</h2>
+        <p class="take" id="tkSpec"></p>
+        <p class="cap">Strength (m/s²) against frequency (Hz), from 2 Hz up (slower arm sway is left out). Solid: now. Dashed: rested baseline. Normal tremor in a healthy hand peaks in the yellow 8–12 Hz zone; a strong slower peak (4–7 Hz) or a much bigger peak than your baseline is a warning sign.</p>
+        <canvas id="trSpecC" aria-label="Spectrum of hand tremor"></canvas>
+        <p class="hint">Slide a finger across the chart to read any frequency.</p>
+      </div>
+      <div class="card">
+        <h2>Hand shake over the 10 s</h2>
+        <p class="take" id="tkTrace"></p>
+        <p class="cap">Acceleration (m/s²) against time, slow arm drift removed.</p>
+        <canvas id="trTraceC" aria-label="Hand shake over 10 seconds"></canvas>
+      </div>
+    </div>
+    <h2 class="step">2 · Reaction time</h2>
+    <div class="card">
+      <p class="cap">Tap the pad to begin. When it turns green, tap as fast as you can. 5 tries.</p>
+      <div class="pad" id="pad" role="button" tabindex="0">Tap to start</div>
+      <p class="status" id="rtStatus" style="margin:8px 0 0"></p>
+    </div>
+    <div id="rtOut" class="hide">
+      <div class="tiles"><div><b id="rMed">–</b><span>ms median</span></div><div><b id="rBest">–</b><span>ms fastest</span></div><div><b id="rSpread">–</b><span>ms spread</span></div></div>
+      <div class="card">
+        <h2>Your 5 tries</h2>
+        <p class="take" id="tkRt"></p>
+        <p class="cap">One bar per try (ms), coloured by speed band. Solid line: your median now. Dashed: your rested baseline. Shorter is better.</p>
+        <canvas id="rtC" aria-label="Reaction time of each try"></canvas>
+        <p class="hint">Slide a finger across the chart to read any try.</p>
+      </div>
+      <div class="card">
+        <h2>Distance before you react</h2>
+        <p class="take" id="tkRtD"></p>
+        <div id="rtDist"></div>
+        <p class="cap" style="margin-top:6px">While you react, the car keeps going at full speed and braking hasn't started. Distance = speed × reaction time. One car is about 4 m long.</p>
+      </div>
+    </div>
+    <h2 class="step">3 · Fit to drive?</h2>
+    <div class="card">
+      <div id="fitCmp"><p class="cap">Do both tests, then save them as your rested baseline.</p></div>
+      <div class="grid2"><button class="btn2" id="fitSave" disabled>Save as baseline</button><button class="btn2" id="fitClear" disabled>Clear baseline</button></div>
+      <p class="cap" style="margin-top:8px">App rule of thumb, not medical advice: shake at least 1.5× your baseline, or reactions at least 40 ms slower, means take a break before driving.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REPORT ============ -->
+<section class="panel" id="pReport">
+  <div id="repEmpty" class="card"><div class="empty">No trip yet · tap Start trip</div></div>
+  <div id="repBody" class="hide">
+    <div class="card" style="border-bottom:0"><h2 id="repTitle">Trip report</h2><p class="cap" id="repMeta" style="margin:0"></p></div>
+    <div class="sum" style="margin-top:0">
+      <button data-goto="pRoad"><span>Road</span><b id="sRoad">–</b><em id="sRoadR"></em></button>
+      <button data-goto="pComfort"><span>Comfort</span><b id="sCom">–</b><em id="sComR"></em></button>
+      <button data-goto="pDrive"><span>Driving</span><b id="sDrv">–</b><em id="sDrvR"></em></button>
+    </div>
+    <div class="card">
+      <h2>Road condition</h2>
+      <div class="stack" id="repStack" aria-label="Share of road length in each rating"></div>
+      <table id="repShare"><thead><tr><th>Rating</th><th class="r">Score</th><th class="r">Length</th><th class="r">Share</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Repair priority</h2>
+      <p class="cap">Worst stretches first. "At" is the distance from where the trip started.</p>
+      <table id="repPri"><thead><tr><th>#</th><th>At</th><th class="r">Score</th><th>Rating</th><th class="r">Holes</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Potholes</h2>
+      <p class="cap">Mark speed breakers so they don't count against the road.</p>
+      <table id="repPot"><thead><tr><th>#</th><th>At</th><th class="r">Jolt</th><th class="r">Speed</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card noprint">
+      <h2>Share and save</h2>
+      <div class="grid2"><button class="btn2" id="xSegs">Road CSV</button><button class="btn2" id="xTrip">Trip CSV</button><button class="btn2" id="xGeo">GeoJSON map</button><button class="btn2" id="xPrint">Print / PDF</button></div>
+      <label class="field" for="svName" style="margin-top:12px">Trip name</label>
+      <input type="text" id="svName" placeholder="e.g. Adyar to Guindy by auto">
+      <div class="grid2"><button class="btn2" id="svSave">Save trip</button><button class="btn2" id="svMap">Show on map</button></div>
+      <p class="cap" id="svMsg" style="margin-top:8px"></p>
+    </div>
+  </div>
+  <details class="how noprint">
+    <summary>How it's measured <span aria-hidden="true">+</span></summary>
+    <h3>Road</h3>
+    <ol><li>Up–down jolt: the accelerometer minus a 1 s gravity average, projected on gravity, so the phone can lie any way up.</li>
+      <li>GPS distance cut into 100 m stretches. Each gets the RMS of the jolt, and its average speed v.</li>
+      <li>R = RMS × √(30 km/h ÷ v) × vehicle factor (car 1.0, bus 0.8, 2-wheeler 0.7, auto 0.6). Vibration grows about with √speed on the same road (ISO 8608 road spectra).</li>
+      <li>Ride Quality Score 0–100 from R (0 → 100, 0.6 → 85, 1.2 → 60, 2.0 → 35, 3.5 → 0), minus 10 per pothole. Good ≥ 85, Fair ≥ 60, Poor ≥ 35, else Very poor. Under 10 km/h is not rated.</li>
+      <li>A pothole is a jolt over the vehicle's threshold (car 3.5 … auto 5 m/s²), pinned at the GPS position.</li></ol>
+    <h3>Comfort</h3>
+    <ol><li>A 3 s gravity average gives up–down. Forward is the phone's long edge, or its back in a holder; sideways is at right angles. Gravity almost freezes during a push, so braking isn't mistaken for a tilt.</li>
+      <li>Movement slower than 0.3 s is a push (braking, starting, turning). The rest is vibration.</li>
+      <li>ISO 2631-1 total value a<sub>v</sub> = √(1.4²a<sub>x</sub>² + 1.4²a<sub>y</sub>² + a<sub>z</sub>²) over 5 s, against its six comfort bands. No frequency weighting, so it's an estimate.</li></ol>
+    <h3>Driving</h3>
+    <ol><li>A harsh move is a push over 2.5 m/s² for ≥ 0.3 s. Mostly sideways means a sharp turn. Forward–back is a brake or a start, told apart by GPS speed before and after, or by the forward direction learned from GPS.</li>
+      <li>Speeding: seconds more than 3 km/h over the limit you set.</li>
+      <li>Score = 100 − 3 per hard brake − 2 per hard start − 2 per sharp turn − 1 per 10 s speeding.</li></ol>
+    <h3>Limits, honestly</h3>
+    <ul><li>The road score is this app's own index in the spirit of the Pavement Condition Index (PCI), not a calibrated IRI. Compare trips made with the same vehicle and phone.</li>
+      <li>About 60 motion readings a second; GPS is good to about 5–10 m.</li>
+      <li>Picking up the phone looks like a pothole or a harsh move. Leave it resting, and mark speed breakers in the report.</li></ul>
+    <p class="cap">ED5518 Assignment 2 · Sidharth Raj M · NS26Z087 · readings never leave the phone</p>
+  </details>
+</section>
+
+<!-- ============ SAVED ============ -->
+<section class="panel" id="pSaved">
+  <div class="card">
+    <h2>Saved trips</h2>
+    <p class="cap">Stored on this phone. All three scores on one scale; open a trip to see it again.</p>
+    <div id="savedList"><div class="empty">Nothing saved yet</div></div>
+  </div>
+</section>
+
+<div class="actions"><div class="in"><button class="go" id="goBtn">Start trip</button><button class="stopb" id="stopBtn" disabled>Stop</button><button class="sec" id="repBtn" disabled>Report</button></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const CSSV={}; function css(n){ if(!(n in CSSV)) CSSV[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return CSSV[n]; }
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||3}" stroke-linecap="square" aria-hidden="true">${p}</svg>`;
+const CHECK='<path d="M4 12l5 5L20 6"/>', CROSS='<path d="M6 6l12 12M18 6L6 18"/>', BANG='<path d="M12 4v10M12 18v2"/>';
+const verdict=(k,t)=>`<span class="verdict ${k||''}">${k==='pass'?svg(CHECK):k==='fail'?svg(CROSS):''}${t}</span>`;
+const fmtClock=ms=>{ const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+const fmtKm=m=>(m/1000).toFixed(2)+' km';
+
+/* ============================================================
+   MODELS
+   ============================================================ */
+// --- road ---
+const SEG_LEN=100, MIN_V=10/3.6, V_REF=30/3.6, POT_PEN=10;
+const VEH={car:{n:'Car',f:1.0,thr:3.5}, auto:{n:'Auto',f:0.6,thr:5.0}, bus:{n:'Bus',f:0.8,thr:4.0}, bike:{n:'2-wheeler',f:0.7,thr:4.5}};
+const RATES=[{min:85,name:'Good',k:'good'},{min:60,name:'Fair',k:'fair'},{min:35,name:'Poor',k:'poor'},{min:-1,name:'Very poor',k:'vpoor'}];
+const rateOf=sc=>RATES.find(r=>sc>=r.min), rateColor=k=>css('--r-'+k);
+const rateName=k=> k==='slow' ? 'Too slow' : RATES.find(r=>r.k===k).name;
+const rateChip=k=>`<span class="rate r-${k}">${k==='good'?svg(CHECK):k==='poor'||k==='vpoor'?svg(BANG):''}${rateName(k)}</span>`;
+function roughness(arms,v,veh){ return arms*Math.sqrt(V_REF/Math.max(v,MIN_V))*VEH[veh].f; }
+function scoreFromR(R){ const P=[[0,100],[0.6,85],[1.2,60],[2.0,35],[3.5,0]]; for(let i=0;i<P.length-1;i++) if(R<=P[i+1][0]) return P[i][1]+(P[i+1][1]-P[i][1])*(R-P[i][0])/(P[i+1][0]-P[i][0]); return 0; }
+// --- comfort ---
+const BANDS=[{max:0.315,name:'Not uncomfortable',short:'Smooth',range:'< 0.315'},{max:0.63,name:'A little uncomfortable',short:'Slight',range:'0.315–0.63'},{max:1.0,name:'Fairly uncomfortable',short:'Fair',range:'0.63–1.0'},{max:1.6,name:'Uncomfortable',short:'Rough',range:'1.0–1.6'},{max:2.5,name:'Very uncomfortable',short:'Very rough',range:'1.6–2.5'},{max:Infinity,name:'Extremely uncomfortable',short:'Extreme',range:'> 2.5'}];
+const bandOf=r=>{ for(let i=0;i<BANDS.length;i++) if(r<BANDS[i].max) return i; return 5; };
+const bandColor=i=>css('--b'+i);
+function scalePos(r){ const e=[0,0.315,0.63,1.0,1.6,2.5,3.5]; for(let i=0;i<6;i++) if(r<e[i+1]) return (i+(r-e[i])/(e[i+1]-e[i]))/6; return 1; }
+// --- driving ---
+const HARSH=2.5, PTS={'Hard brake':3,'Hard start':2,'Sharp turn':2,'Hard brake or start':3};
+
+function haversine(a,b){ const R=6371000,t=Math.PI/180,dLa=(b.lat-a.lat)*t,dLo=(b.lon-a.lon)*t; const s=Math.sin(dLa/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(s)); }
+const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+function hAxes(g){ const gm=Math.hypot(g[0],g[1],g[2])||1, u=g.map(v=>v/gm), b=Math.abs(u[1])<0.7?[0,1,0]:[0,0,-1], bu=dot3(b,u); let f=b.map((v,i)=>v-bu*u[i]); const fm=Math.hypot(f[0],f[1],f[2])||1; f=f.map(v=>v/fm); return {u,f,l:[u[1]*f[2]-u[2]*f[1],u[2]*f[0]-u[0]*f[2],u[0]*f[1]-u[1]*f[0]]}; }
+
+/* ============================================================
+   TRIP: one recording feeds the road, comfort and driving views
+   ============================================================ */
+let T=null, veh='auto';
+function newTrip(){ return {id:Date.now(), name:'', date:new Date().toISOString(), veh, limit:+$('limit').value||50, segs:[], pots:[], events:[], dist:0, dur:0,
+  com:{hist:[], bandMs:[0,0,0,0,0,0], tot:[0,0,0], n:0}, drv:{trace:[], speedMs:0}}; }
+const LV={on:false};   // live state
+function resetLive(){
+  Object.assign(LV,{on:true, t0:performance.now(), count:0, gR:null, gRlast:0, win:[], winSum:0, jt:[], jv:[], pev:null, lastPotT:-1e9,
+    gC:null, gClast:0, sA:0, sC:0, cwin:[], csum:[0,0,0], aV:null, rz:null, rh:null, prevT:null, trail:[], lastHist:-1e9,
+    hev:null, lastEvT:-1e9, cov:0, covN:0, accA:0, accN:0,
+    lastGood:null, lastFix:null, fixes:[], cur:null, gpsMsg:null, watch:null});
+}
+function onMotion(e){
+  const a=e.accelerationIncludingGravity; if(!a||a.x==null) return;
+  if(TR.state==='rec'){ const t=performance.now(); TR.buf.t.push(t); TR.buf.x.push(a.x); TR.buf.y.push(a.y); TR.buf.z.push(a.z);
+    if(TR.ex==null){ TR.ex=a.x; TR.ey=a.y; } TR.ex+=0.07*(a.x-TR.ex); TR.ey+=0.07*(a.y-TR.ey); TR.trail.push([a.x-TR.ex,a.y-TR.ey]); if(TR.trail.length>90) TR.trail.shift(); }
+  if(!LV.on) return;
+  const t=performance.now()-LV.t0, A=[a.x,a.y,a.z]; LV.count++;
+  // ---- road: vertical jolt with a 1 s gravity average ----
+  if(!LV.gR){ LV.gR=A.slice(); LV.gRlast=t; LV.gC=A.slice(); LV.gClast=t; return; }
+  let dt=Math.min(0.2,Math.max(0,(t-LV.gRlast)/1000)); LV.gRlast=t;
+  let k=dt/(1+dt); for(let i=0;i<3;i++) LV.gR[i]+=k*(A[i]-LV.gR[i]);
+  const gm=Math.hypot(...LV.gR)||1; let v=0; for(let i=0;i<3;i++) v+=(A[i]-LV.gR[i])*LV.gR[i]/gm;
+  const v2=v*v; LV.win.push([t,v2]); LV.winSum+=v2; while(LV.win.length && LV.win[0][0]<t-5000) LV.winSum-=LV.win.shift()[1];
+  LV.jt.push(t); LV.jv.push(v); if(LV.jt.length>1500){ LV.jt.shift(); LV.jv.shift(); }
+  // ---- comfort: slow gravity that nearly freezes during a push ----
+  const tauG= t<3000 ? 0.3 : (Math.hypot(LV.sA,LV.sC)>0.8 ? 30 : 3); k=dt/(tauG+dt); for(let i=0;i<3;i++) LV.gC[i]+=k*(A[i]-LV.gC[i]);
+  if(t<3000) return;
+  if(LV.cur){ LV.cur.sumSq+=v2; LV.cur.n++; }
+  const thr=VEH[T.veh].thr, av=Math.abs(v);
+  if(!LV.pev){ if(av>thr && t-LV.lastPotT>1000) LV.pev={t,peak:av}; } else { if(av>LV.pev.peak) LV.pev.peak=av; if(t-LV.pev.t>300){ addPot(LV.pev); LV.lastPotT=t; LV.pev=null; } }
+  const ax=hAxes(LV.gC), d=A.map((x,i)=>x-LV.gC[i]), vz=dot3(d,ax.u), dh=d.map((x,i)=>x-vz*ax.u[i]);
+  const along=dot3(dh,ax.f), across=dot3(dh,ax.l), ks=dt/(0.3+dt); LV.sA+=ks*(along-LV.sA); LV.sC+=ks*(across-LV.sC);
+  LV.accA+=LV.sA; LV.accN++;
+  const fa=along-LV.sA, fc=across-LV.sC, E=[vz*vz,fa*fa,fc*fc];
+  LV.cwin.push([t,E]); for(let i=0;i<3;i++) LV.csum[i]+=E[i]; while(LV.cwin.length && LV.cwin[0][0]<t-5000){ const o=LV.cwin.shift()[1]; for(let i=0;i<3;i++) LV.csum[i]-=o[i]; }
+  const n=LV.cwin.length, rz=Math.sqrt(Math.max(0,LV.csum[0])/n), rx=Math.sqrt(Math.max(0,LV.csum[1])/n), ry=Math.sqrt(Math.max(0,LV.csum[2])/n);
+  LV.aV=Math.sqrt(1.96*(rx*rx+ry*ry)+rz*rz); LV.rz=rz; LV.rh=Math.hypot(rx,ry);
+  const C=T.com; if(LV.prevT!=null){ const dd=t-LV.prevT; if(dd>0&&dd<500) C.bandMs[bandOf(LV.aV)]+=dd; } LV.prevT=t;
+  for(let i=0;i<3;i++) C.tot[i]+=E[i]; C.n++;
+  if(t-LV.lastHist>=500){ C.hist.push([+(t/1000).toFixed(1),+LV.aV.toFixed(3)]); LV.lastHist=t; }
+  LV.trail.push([t,LV.sC,LV.sA]); while(LV.trail.length && LV.trail[0][0]<t-60000) LV.trail.shift();
+  // ---- harsh moves (shared by comfort and driving) ----
+  const m=Math.hypot(LV.sA,LV.sC);
+  if(!LV.hev){ if(m>HARSH && t-LV.lastEvT>1500) LV.hev={t0:t,peak:m,pa:LV.sA,pc:LV.sC}; }
+  else { if(m>LV.hev.peak){ LV.hev.peak=m; LV.hev.pa=LV.sA; LV.hev.pc=LV.sC; } if(m<HARSH*0.7){ if(t-LV.hev.t0>=300) addEvent(LV.hev,t); LV.hev=null; LV.lastEvT=t; } }
+}
+window.addEventListener('devicemotion',onMotion);
+function addPot(ev){ const f=LV.lastFix; if(!f) return; const p={n:T.pots.length+1,t:ev.t,peak:ev.peak,lat:f.lat,lon:f.lon,spd:f.spd!=null?f.spd*3.6:null,at:T.dist,seg:T.segs.length,sb:false}; T.pots.push(p); drawPot(p); }
+function addEvent(ev,tEnd){
+  const side=Math.abs(ev.pc)>Math.abs(ev.pa), before=LV.fixes.filter(f=>f.spd!=null&&f.t<=ev.t0).pop(), f=LV.lastFix;
+  let type=null; if(side) type='Sharp turn'; else if(LV.covN>=5 && Math.abs(LV.cov)>0.5) type= Math.sign(LV.cov)*ev.pa<0 ? 'Hard brake' : 'Hard start';
+  T.events.push({n:T.events.length+1, t:ev.t0, tEnd, peak:ev.peak, x:ev.pc, y:ev.pa, type, spd:before?before.spd*3.6:null, v0:before?before.spd:null, at:T.dist, lat:f?f.lat:null, lon:f?f.lon:null});
+}
+function classifyPending(nowT){
+  T.events.forEach(e=>{ if(e.type) return; const after=LV.fixes.filter(f=>f.spd!=null && f.t>=e.tEnd+500 && f.t<=e.tEnd+4000).pop();
+    if(after && e.v0!=null && Math.abs(after.spd-e.v0)>0.3) e.type= after.spd<e.v0 ? 'Hard brake' : 'Hard start';
+    else if(nowT>e.tEnd+4000 || !LV.on) e.type='Hard brake or start'; });
+}
+function newSeg(start){ return {d:0, t0:performance.now()-LV.t0, sumSq:0, n:0, pts: start? [[start.lat,start.lon]] : []}; }
+function onFix(pos){
+  if(!LV.on) return;
+  const c=pos.coords, t=performance.now()-LV.t0;
+  const f={t, lat:c.latitude, lon:c.longitude, acc:c.accuracy, spd:(c.speed!=null&&c.speed>=0)?c.speed:null};
+  LV.lastFix=f; LV.gpsMsg=null;
+  const prev=LV.fixes.filter(x=>x.spd!=null).pop();
+  if(f.acc<=25){
+    if(!LV.lastGood){ LV.lastGood=f; LV.cur=newSeg(f); centre(f,true); }
+    else { const d=haversine(LV.lastGood,f);
+      if(d>=2){ if(f.spd==null){ const dt=(f.t-LV.lastGood.t)/1000; if(dt>0) f.spd=d/dt; }
+        LV.cur.d+=d; LV.cur.pts.push([f.lat,f.lon]); T.dist+=d; LV.lastGood=f; if(LV.cur.d>=SEG_LEN) closeSeg(f); if(follow) centre(f,false); } }
+  }
+  LV.fixes.push(f); if(LV.fixes.length>600) LV.fixes.shift();
+  if(f.spd!=null){
+    T.drv.trace.push([+(t/60000).toFixed(3), +(f.spd*3.6).toFixed(1)]);
+    if(prev){ const dt=(t-prev.t)/1000; if(dt>0.4 && dt<3){ const dv=(f.spd-prev.spd)/dt, mA=LV.accN? LV.accA/LV.accN : 0; if(Math.abs(dv)>0.3 && Math.abs(mA)>0.2){ LV.cov+=dv*mA; LV.covN++; } if(f.spd*3.6>T.limit+3) T.drv.speedMs+=dt*1000; } }
+  }
+  LV.accA=0; LV.accN=0; classifyPending(t);
+}
+function closeSeg(f,partial){
+  const c=LV.cur; if(!c || c.d<(partial?30:SEG_LEN) || !c.n) return;
+  const t=f?f.t:performance.now()-LV.t0, dur=(t-c.t0)/1000, v=dur>0?c.d/dur:0, arms=Math.sqrt(c.sumSq/c.n), slow=v<MIN_V;
+  const g={i:T.segs.length, from:T.dist-c.d, to:T.dist, len:c.d, v, arms, R:roughness(arms,v,T.veh), slow, pts:c.pts};
+  T.segs.push(g); rescore(T); drawSeg(g); if(road3D) road3D.draw();
+  LV.cur=newSeg(f||LV.lastGood);
+}
+function rescore(tr){ tr.segs.forEach(g=>{ const np=tr.pots.filter(p=>p.seg===g.i&&!p.sb).length; g.np=np; g.score=g.slow?null:clamp(scoreFromR(g.R)-POT_PEN*np,0,100); g.rate=g.slow?'slow':rateOf(g.score).k; }); }
+function roadSummary(tr){ const rated=tr.segs.filter(g=>!g.slow), Lr=rated.reduce((a,g)=>a+g.len,0); const share={}; RATES.forEach(r=>share[r.k]=0); rated.forEach(g=>share[g.rate]+=g.len);
+  const slowLen=tr.segs.filter(g=>g.slow).reduce((a,g)=>a+g.len,0); return {score:Lr?rated.reduce((a,g)=>a+g.score*g.len,0)/Lr:null, share, slowLen, total:Lr+slowLen, pots:tr.pots.filter(p=>!p.sb).length}; }
+function comfortSummary(tr){ const C=tr.com; if(!C.n) return null; const aV=Math.sqrt(1.96*(C.tot[1]+C.tot[2])/C.n+C.tot[0]/C.n), tot=C.bandMs.reduce((a,b)=>a+b,0)||1; return {aV, ok:(C.bandMs[0]+C.bandMs[1])/tot}; }
+function driveSummary(tr){ const c={}; tr.events.forEach(e=>{ const k=e.type||'Hard brake or start'; c[k]=(c[k]||0)+1; }); const sp=Math.floor((tr.drv.speedMs||0)/10000);
+  let lost=0; const rows=[]; ['Hard brake','Hard start','Sharp turn','Hard brake or start'].forEach(k=>{ if(k==='Hard brake or start'&&!c[k]) return; const n=c[k]||0; lost+=n*PTS[k]; rows.push([k,n,PTS[k],n*PTS[k]]); });
+  rows.push(['Speeding (per 10 s)',sp,1,sp]); lost+=sp; return {score:clamp(100-lost,0,100), rows}; }
+const driveVerdict=s=> s>=85 ? ['pass','Smooth driving'] : s>=60 ? ['','Room to improve'] : ['fail','Harsh driving'];
+
+/* ============================================================
+   START / STOP
+   ============================================================ */
+function askMotion(){ let p=Promise.resolve('granted'); if(window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission==='function'){ try{ p=DeviceMotionEvent.requestPermission(); }catch(e){ p=Promise.reject(e); } } return p.then(r=>{ if(r!=='granted') throw new Error('Motion access was not allowed.'); }); }
+let wakeLock=null; async function keepAwake(on){ try{ if(on && 'wakeLock' in navigator && !wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); } if(!on && wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && LV.on) keepAwake(true); });
+$('goBtn').addEventListener('click',()=>{
+  if(LV.on) return;
+  const perm=askMotion();
+  T=newTrip(); resetLive(); clearMap();
+  if('geolocation' in navigator) LV.watch=navigator.geolocation.watchPosition(onFix,e=>{ LV.gpsMsg= e.code===1?'Location not allowed: the trip needs GPS for distance, speed and the map.':'Waiting for GPS…'; },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+  else LV.gpsMsg='No GPS in this browser.';
+  keepAwake(true); $('hdr').classList.add('recording'); $('howStart').classList.add('hide');
+  $('goBtn').disabled=true; $('stopBtn').disabled=false; $('repBtn').disabled=true;
+  $('goBtn').classList.add('wait'); $('goBtn').textContent='Allow access…';
+  ['bRoad','bCom','bDrv'].forEach(id=>{ setBand(id,{state:'rec',num:'–'}); bandProg(id,'indef'); });
+  perm.then(()=>{ $('goBtn').classList.remove('wait'); $('goBtn').textContent='Start trip'; const c0=LV.count; setTimeout(()=>{ if(LV.on && LV.count===c0) $('status').innerHTML='<b>No motion data.</b> Open the https link in Safari and tap Allow.'; },2500); })
+    .catch(e=>{ $('goBtn').classList.remove('wait'); $('goBtn').textContent='Start trip'; $('status').innerHTML='<b>'+e.message+'</b> Close the tab, open the page again and tap Allow.'; stopTrip(); });
+  ensureMap(); requestAnimationFrame(frame);
+});
+$('stopBtn').addEventListener('click',()=>{ if(LV.on) stopTrip(); });
+$('repBtn').addEventListener('click',()=>showPanel('pReport'));
+function stopTrip(){
+  LV.on=false; if(LV.watch!=null) navigator.geolocation.clearWatch(LV.watch); LV.watch=null;
+  if(LV.cur && LV.cur.d>=30) closeSeg(LV.lastGood,true);
+  T.dur=(performance.now()-LV.t0)/1000; classifyPending(T.dur*1000);
+  keepAwake(false); $('hdr').classList.remove('recording');
+  ['bRoad','bCom','bDrv'].forEach(id=>bandProg(id,null));
+  $('goBtn').disabled=false; $('goBtn').textContent='New trip'; $('stopBtn').disabled=true; $('repBtn').disabled=false;
+  renderAll(true); renderReport();
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+function setBand(id,o){ const b=$(id); if(o.state) b.dataset.state=o.state; if(o.label!=null) b.querySelector('.lbl').textContent=o.label;
+  if(o.num!=null){ const n=b.querySelector('.num'), e=String(o.num)==='–'; n.textContent=e?'':o.num; n.dataset.g=b.dataset.ghost||'00'; n.classList.toggle('empty',e); } if(o.unit!=null) b.querySelector('.unit').innerHTML=o.unit; }
+function bandProg(id,v){ const b=$(id); let p=b.querySelector('.bprog'); if(!p){ p=document.createElement('span'); p.className='bprog'; p.innerHTML='<i></i>'; b.appendChild(p); }
+  if(v==null){ p.classList.remove('on','indef'); return; } p.classList.add('on'); p.classList.toggle('indef',v==='indef'); if(v!=='indef') p.firstChild.style.width=(clamp(v,0,1)*100)+'%'; }
+let lastFrame=0, lastFull=0;
+function frame(ts){ if(LV.on) requestAnimationFrame(frame); if(ts-lastFrame<80) return; lastFrame=ts; const full=ts-lastFull>1000; if(full) lastFull=ts; renderAll(full); }
+let tab='pRoad';
+function renderAll(full){
+  if(!T) return;
+  const t=LV.on? performance.now()-LV.t0 : T.dur*1000, f=LV.on? LV.lastFix : null, spd=f&&f.spd!=null? f.spd : null;
+  if(LV.on){
+    $('recTxt').textContent=`REC ${fmtClock(t)} · ${(T.dist/1000).toFixed(2)} km · ${spd!=null?Math.round(spd*3.6)+' km/h':'–'}`;
+    $('status').innerHTML=`${LV.gpsMsg || (f?`GPS ±${Math.round(f.acc)} m`:'Waiting for GPS…')}${wakeLock?' · screen kept on':''}`;
+    if(t<3000) ['bRoad','bCom','bDrv'].forEach(id=>{ bandProg(id,clamp(t/3000,0,1)); setBand(id,{label:'Finding down · keep still'}); });
+    else ['bRoad','bCom','bDrv'].forEach(id=>bandProg(id,null));
+  }
+  // badges
+  const np=T.pots.filter(p=>!p.sb).length, ne=T.events.length;
+  [['bdRoad',np],['bdCom',ne],['bdDrv',ne]].forEach(([id,v])=>{ $(id).textContent=v; $(id).classList.toggle('on',v>0); });
+  renderRoad(t,spd,full); renderComfort(t,full); renderDrive(t,full);
+}
+// ---------- road view ----------
+function renderRoad(t,spd,full){
+  $('tSpd').textContent= spd!=null? Math.round(spd*3.6) : '–'; $('tKm').textContent=(T.dist/1000).toFixed(2); $('tPot').textContent=T.pots.filter(p=>!p.sb).length;
+  if(LV.on && t>=3000){
+    const arms=LV.win.length? Math.sqrt(LV.winSum/LV.win.length) : 0, sc= spd!=null&&spd>=MIN_V ? Math.round(clamp(scoreFromR(roughness(arms,spd,T.veh)),0,100)) : null;
+    setBand('bRoad',{label:`Road · live · ${VEH[T.veh].n}`, num: sc==null?'–':String(sc)});
+    $('mRoad').innerHTML= sc==null ? (spd==null?'Waiting for GPS speed…':'Too slow to rate here (under 10 km/h).') : rateChip(rateOf(sc).k)+' <span style="display:block;margin-top:6px">The road under you right now.</span>';
+  } else if(!LV.on){ const s=roadSummary(T);
+    if(s.score!=null){ setBand('bRoad',{state:'done',label:`Road · whole trip · ${fmtKm(s.total)}`,num:String(Math.round(s.score)),unit:'ride quality<br>average'}); $('mRoad').innerHTML=rateChip(rateOf(s.score).k)+` <span style="display:block;margin-top:6px">${s.pots} pothole${s.pots===1?'':'s'}. The Report lists the worst stretches first.</span>`; }
+    else { setBand('bRoad',{state:'idle',label:'Road · too short to rate',num:'–'}); $('mRoad').textContent='Ride at least 100 m above 10 km/h.'; } }
+  drawJolt(); if(full){ drawProfile(); if(road3D && tab==='pRoad') road3D.draw(); }
+}
+// ---------- comfort view ----------
+function paintComfort(v){ const b=bandOf(v), el=$('cmVerdict'); el.className='verdict'+(b>=3?' fail':b<=1?' pass':''); el.innerHTML=(b>=3?svg(CROSS):b<=1?svg(CHECK):'')+BANDS[b].name; $('cmPtr').style.left=(scalePos(v)*100)+'%'; }
+function renderComfort(t,full){
+  const cs=comfortSummary(T);
+  if(LV.on && LV.aV!=null){ setBand('bCom',{label:`Comfort · live · ${VEH[T.veh].n}`, num:LV.aV.toFixed(2)}); paintComfort(LV.aV); }
+  else if(!LV.on && cs){ setBand('bCom',{state:'done',label:'Comfort · whole trip',num:cs.aV.toFixed(2)}); paintComfort(cs.aV); }
+  $('cmZ').textContent=LV.on&&LV.rz!=null?LV.rz.toFixed(2):'–'; $('cmXY').textContent=LV.on&&LV.rh!=null?LV.rh.toFixed(2):'–'; $('cmH').textContent=T.events.length;
+  if(tab==='pComfort') drawGG();
+  const evs=T.events; $('tkGG').textContent = !evs.length ? (T.com.n?'No harsh moves: gentle driving so far.':'') : `${evs.length} harsh move${evs.length===1?'':'s'}: `+evs.slice(-3).map(e=>`${(e.type||'push').toLowerCase()} at ${fmtClock(e.t)}`).join(', ')+'.';
+  if(!full) return;
+  const H=T.com.hist, tmax=Math.max(60,Math.ceil((t/1000)/30)*30), ymax=Math.min(3.5,Math.max(1.2,...H.map(p=>p[1]))*1.15), e=[0,0.315,0.63,1.0,1.6,2.5,3.5];
+  const st=tmax<=120?30:tmax<=300?60:tmax<=900?120:300, xt=[]; for(let v=0;v<=tmax;v+=st) xt.push(v);
+  const pk=H.length? H.reduce((a,b)=>b[1]>a[1]?b:a) : null, csm=comfortSummary(T);
+  $('tkCom').textContent = !pk ? '' : `Roughest at ${fmtClock(pk[0]*1000)}: ${pk[1].toFixed(2)} m/s² (${BANDS[bandOf(pk[1])].name.toLowerCase()}). ${csm?Math.round(csm.ok*100):0} % of the trip was comfortable.`;
+  chart($('cmTripC'),{h:190,x:[0,tmax],y:[0,ymax],ml:40,ylab:'m/s² iso total',xlab:'trip time',xt,xf:v=>v>=60?(v/60)+' min':v+' s',yf:v=>v.toFixed(1),empty:'Start a trip',
+    yb:e.slice(0,6).map((y,i)=>({y0:y,y1:e[i+1],fill:bandColor(i)+'40',label:BANDS[i].short})), s:[{xs:H.map(p=>p[0]),ys:H.map(p=>p[1]),color:css('--ink'),width:2}],
+    dots:T.events.map(ev=>({x:ev.t/1000,y:ymax*0.93,color:css('--alert'),ring:css('--ink'),r:5})),
+    notes: pk? [{x:pk[0],y:pk[1],text:'roughest'}] : [],
+    tip: H.length? v=>{ const i=nearestIdx(H.map(p=>p[0]),v); return {x:H[i][0],y:H[i][1],lines:[`at ${fmtClock(H[i][0]*1000)}`,`${H[i][1].toFixed(2)} m/s² · ${BANDS[bandOf(H[i][1])].short}`]}; } : null});
+  const tot=T.com.bandMs.reduce((a,b)=>a+b,0); $('cmStack').innerHTML='';
+  $('cmTable').innerHTML=BANDS.map((b,i)=>{ const sh=tot?T.com.bandMs[i]/tot:0; if(sh>0){ const d=document.createElement('div'); d.style.width=(sh*100)+'%'; d.style.background=bandColor(i); $('cmStack').appendChild(d); }
+    return `<tr><td><span class="sw" style="background:${bandColor(i)}"></span>${b.name}</td><td class="r">${b.range}</td><td class="r">${fmtClock(T.com.bandMs[i])}</td><td class="r">${tot?Math.round(sh*100)+'%':'–'}</td></tr>`; }).join('');
+}
+// ---------- driving view ----------
+const EVT={'Hard brake':{k:'brake',shape:'down',word:'Hard brake'},'Hard start':{k:'start',shape:'up',word:'Hard start'},'Sharp turn':{k:'turn',shape:'diamond',word:'Sharp turn'}};
+const evInfo=type=>EVT[type]||{k:'slow',shape:'dot',word:type||'Harsh move'};
+const evColor=type=>{ const k=evInfo(type).k; return k==='slow'?css('--r-slow'):css('--ev-'+k); };
+const shapeSVG=(shape,col)=>`<svg viewBox="0 0 16 16" aria-hidden="true">${shape==='down'?`<path d="M2 3h12L8 14z"`:shape==='up'?`<path d="M2 13h12L8 2z"`:shape==='diamond'?`<path d="M8 1l7 7-7 7-7-7z"`:`<circle cx="8" cy="8" r="6"`} fill="${col}" stroke="${css('--ink')}" stroke-width="1.6"/></svg>`;
+function evLegendHTML(){ return Object.keys(EVT).map(t=>`<span>${shapeSVG(EVT[t].shape,evColor(t))}${EVT[t].word}</span>`).join(''); }
+function drawDriveGauge(score,ok){
+  const c=$('dGauge'), W=c.clientWidth||320, Hh=Math.min(220,Math.round(W*0.58)), {ctx,w,h}=setupCanvas(c,Hh), cx=w/2, cy=h-30, R=Math.min(w/2-14,h-44), ink=css('--ink');
+  const ang=v=>Math.PI*(1+v/100);   // 0 → left, 100 → right
+  [[0,60,css('--alert'),'HARSH'],[60,85,css('--r-fair'),'IMPROVE'],[85,100,css('--pass'),'SMOOTH']].forEach(([a,b,col,lab])=>{
+    ctx.beginPath(); ctx.arc(cx,cy,R,ang(a)+0.01,ang(b)-0.01); ctx.lineWidth=22; ctx.strokeStyle=col; ctx.stroke();
+    const m=ang((a+b)/2); ctx.font='800 12px '+css('--cond'); ctx.fillStyle=css('--muted'); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(lab,cx+Math.cos(m)*(R-32),cy+Math.sin(m)*(R-32)); });
+  ctx.font='700 12px '+css('--sans'); ctx.fillStyle=css('--muted'); [0,60,85,100].forEach(v=>{ const a=ang(v); ctx.textAlign=v===0?'right':v===100?'left':'center'; ctx.fillText(v,cx+Math.cos(a)*(R+16),cy+Math.sin(a)*(R+16)); });
+  if(!ok){ ctx.font='800 15px '+css('--cond'); ctx.textAlign='center'; ctx.fillText('START A TRIP',cx,cy-12); return; }
+  const a=ang(clamp(score,0,100)); ctx.strokeStyle=ink; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*(R-14),cy+Math.sin(a)*(R-14)); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,9,0,7); ctx.fillStyle=ink; ctx.fill();
+  ctx.font='800 44px '+css('--cond'); ctx.fillStyle=ink; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(score,cx,cy-14);
+}
+let dmap=null, dlayer=null;
+function ensureDMap(){ if(dmap||!window.L) return; dmap=L.map('dmap',{zoomControl:true}).setView([20.6,78.9],4); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(dmap).on('load',()=>$('dmapLoad').classList.add('gone')); dlayer=L.layerGroup().addTo(dmap); }
+function drawDMap(fit){
+  ensureDMap(); if(!dlayer||!T) return; dlayer.clearLayers();
+  const pts=T.segs.flatMap(g=>g.pts).concat(LV.cur&&LV.cur.pts? LV.cur.pts : []);
+  if(pts.length>1) L.polyline(pts,{color:css('--casing'),weight:7,opacity:.8}).addTo(dlayer), L.polyline(pts,{color:css('--r-slow'),weight:4}).addTo(dlayer);
+  T.events.filter(e=>e.lat!=null).forEach(e=>{ const inf=evInfo(e.type);
+    L.marker([e.lat,e.lon],{icon:L.divIcon({className:'',html:`<div style="width:22px;height:22px">${shapeSVG(inf.shape,evColor(e.type)).replace('<svg ','<svg width="22" height="22" ')}</div>`,iconSize:[22,22],iconAnchor:[11,11]})})
+      .bindPopup(`<b>${inf.word}</b><br>${(e.peak/9.81).toFixed(2)} g at ${(e.at/1000).toFixed(2)} km${e.spd!=null?' · '+Math.round(e.spd)+' km/h':''}`).addTo(dlayer); });
+  if(pts.length>1 && (fit||!LV.on)){ $('dmapLoad').classList.add('gone'); dmap.fitBounds(pts,{padding:[24,24]}); } else if(pts.length){ $('dmapLoad').classList.add('gone'); dmap.panTo(pts[pts.length-1]); if(dmap.getZoom()<14) dmap.setView(pts[pts.length-1],16); }
+}
+function renderDrive(t,full){
+  const ds=driveSummary(T), ok=t>3000;
+  setBand('bDrv',{state: LV.on?'rec':'done', label: LV.on?`Driving · live · limit ${T.limit} km/h`:`Driving · whole trip`, num: ok?String(ds.score):'–'});
+  if(ok){ const k=driveVerdict(ds.score); $('mDrv').innerHTML=`${verdict(k[0],k[1])} <span style="display:block;margin-top:6px">${T.events.length} harsh move${T.events.length===1?'':'s'} and ${Math.round(T.drv.speedMs/1000)} s over ${T.limit} km/h.</span>`; }
+  $('dKm').textContent=(T.dist/1000).toFixed(1); $('dEv').textContent=T.events.length; $('dSp').textContent=Math.round(T.drv.speedMs/1000);
+  if(!full) return;
+  drawDriveGauge(ds.score,ok);
+  const lost=ds.rows.filter(r=>r[3]>0).sort((a,b)=>b[3]-a[3]), totLost=100-ds.score, kv=driveVerdict(ds.score);
+  $('tkGaugeD').textContent = !ok ? '' : totLost===0 ? `${ds.score}: ${kv[1].toLowerCase()}. No points lost.` : `${ds.score}: ${kv[1].toLowerCase()}. You lost ${totLost} point${totLost===1?'':'s'}: ${lost.map(r=>`${r[3]} for ${r[0]==='Speeding (per 10 s)'?'speeding':r[1]+' '+r[0].toLowerCase()+(r[1]>1?'s':'')}`).join(', ')}.`;
+  $('tkPts').textContent = !ok ? '' : lost.length ? `Biggest loss: ${lost[0][0]==='Speeding (per 10 s)'?'speeding':lost[0][0].toLowerCase()+'s'} (−${lost[0][3]}).` : 'Nothing lost: no harsh moves, no speeding.';
+  const mxL=Math.max(1,...ds.rows.map(r=>r[3]));
+  $('dPts').innerHTML=ds.rows.map(r=>{ const sp=r[0]==='Speeding (per 10 s)', col= sp?css('--alert'):evColor(r[0]), shape= sp?'dot':evInfo(r[0]).shape;
+    return `<div class="lost">${shapeSVG(shape,col)}<span class="nm">${sp?'Speeding':r[0]}<small>${r[1]} × ${r[2]} point${r[2]===1?'':'s'}${sp?' per 10 s over':''}</small></span><span class="v">${r[3]?'−'+r[3]:'0'}</span><span class="tr"><i style="width:${(r[3]/mxL*100).toFixed(1)}%;background:${col}"></i></span></div>`; }).join('')
+    +`<div class="lost" style="border-top:2px solid var(--line);padding-top:8px"><span></span><span class="nm">Score</span><span class="v">${ds.score}</span></div>`;
+  $('evLeg').innerHTML=evLegendHTML(); $('evLeg2').innerHTML=evLegendHTML();
+  const tr=T.drv.trace, tmax=Math.max(1,Math.ceil(t/60000)), ymax=Math.max(T.limit*1.3,...tr.map(p=>p[1]*1.1),20);
+  const top=tr.length? Math.max(...tr.map(p=>p[1])) : 0, spS=Math.round(T.drv.speedMs/1000);
+  $('tkSpd').textContent = !tr.length ? '' : `Top speed ${Math.round(top)} km/h. ${spS? spS+' s over the '+T.limit+' km/h limit.' : 'Never over the '+T.limit+' km/h limit.'}`;
+  const shortT=t=>({'Hard brake':'brake','Hard start':'start','Sharp turn':'turn'})[t]||'push';
+  chart($('dSpdC'),{h:180,x:[0,tmax],y:[0,ymax],ml:40,ylab:'km/h',xlab:'trip time',xf:v=>v===0?'0':v<1?Math.round(v*60)+' s':v+' min',yf:v=>v.toFixed(0),empty:'Start a trip',
+    above:{y:T.limit,fill:css('--over')}, hl:[{y:T.limit,color:css('--ink'),dash:[6,4],width:2}], s:[{xs:tr.map(p=>p[0]),ys:tr.map(p=>p[1]),color:css('--ink'),width:2}],
+    dots:T.events.filter(e=>e.spd!=null).map(e=>({x:e.t/60000,y:e.spd,color:evColor(e.type),ring:css('--ink'),r:8,shape:evInfo(e.type).shape})), labels:[{x:tmax,y:T.limit,text:`limit ${T.limit}`,align:'right',dx:-4}],
+    notes:T.events.filter(e=>e.spd!=null).slice(-3).map(e=>({x:e.t/60000,y:e.spd,text:shortT(e.type)})),
+    tip: tr.length? v=>{ const i=nearestIdx(tr.map(p=>p[0]),v); return {x:tr[i][0],y:tr[i][1],lines:[`at ${fmtClock(tr[i][0]*60000)}`,`${Math.round(tr[i][1])} km/h${tr[i][1]>T.limit?' · over the limit':''}`]}; } : null});
+  // time at speed: under the limit, up to 10 over, more than 10 over
+  const zc=[0,0,0]; tr.forEach(p=>{ zc[p[1]<=T.limit?0:p[1]<=T.limit+10?1:2]++; }); const zn=tr.length||1, zcol=[css('--pass'),css('--r-fair'),css('--alert')], zlab=[`under ${T.limit}`,`up to ${T.limit+10}`,`over ${T.limit+10} km/h`];
+  $('spdZ').innerHTML=zc.map((c2,i)=>c2?`<div style="width:${(c2/zn*100).toFixed(1)}%;background:${zcol[i]}" title="${zlab[i]}"></div>`:'').join('');
+  $('spdZL').innerHTML=zc.map((c2,i)=>`<span><i style="display:inline-block;width:14px;height:10px;background:${zcol[i]}"></i>${zlab[i]}: <b style="color:var(--ink)">${Math.round(c2/zn*100)}%</b></span>`).join('');
+  if(tab==='pDrive') drawDMap(false);
+  const ev=T.events.slice().reverse().slice(0,12);
+  $('dEvT').innerHTML= ev.length ? ev.map(e=>`<tr><td>${e.n}</td><td>${(e.at/1000).toFixed(2)} km</td><td><span style="display:inline-flex;align-items:center;gap:6px">${shapeSVG(evInfo(e.type).shape,evColor(e.type)).replace('<svg ','<svg width="14" height="14" ')}${e.type||'…'}</span></td><td class="r">${(e.peak/9.81).toFixed(2)} g</td><td class="r">${e.spd!=null?Math.round(e.spd)+' km/h':'–'}</td></tr>`).join('') : '<tr><td colspan="5" class="cap">None yet.</td></tr>';
+}
+$('limit').addEventListener('input',()=>{ const v=+$('limit').value; if(v>0 && T && LV.on) T.limit=v; if(T) renderDrive(LV.on?performance.now()-LV.t0:T.dur*1000,true); });
+
+/* ---------- charts ---------- */
+function setupCanvas(c,h){ const dpr=window.devicePixelRatio||1, w=c.clientWidth||320; if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){ c.width=Math.round(w*dpr); c.height=Math.round(h*dpr); c.style.height=h+'px'; } const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h); return {ctx,w,h}; }
+function ticks(a,b,n){ const sp=b-a; if(!(sp>0)) return [a]; const raw=sp/n, mag=10**Math.floor(Math.log10(raw)), f=raw/mag, st=(f<1.5?1:f<3?2:f<7?5:10)*mag, o=[]; for(let v=Math.ceil(a/st)*st; v<=b+1e-9; v+=st) o.push(+v.toFixed(10)); return o; }
+function chart(c,o){
+  c._o=o; if(!c._insp) attachInspect(c);
+  const {ctx,w,h}=setupCanvas(c,o.h||170), m={l:o.ml||40,r:12,t:o.ylab?24:12,b:o.xlab?40:24}, pw=w-m.l-m.r, ph=h-m.t-m.b;
+  const X=v=>m.l+(v-o.x[0])/(o.x[1]-o.x[0])*pw, Y=v=>m.t+(1-(v-o.y[0])/(o.y[1]-o.y[0]))*ph;
+  c._g={m,pw,ph,X,Y,w,h};
+  ctx.font='500 12.5px '+css('--sans');
+  (o.yb||[]).forEach(b=>{ const y0=clamp(Y(b.y1),m.t,m.t+ph), y1=clamp(Y(b.y0),m.t,m.t+ph); if(y1>y0){ ctx.fillStyle=b.fill; ctx.fillRect(m.l,y0,pw,y1-y0);
+  } });
+  ctx.strokeStyle=css('--grid'); ctx.fillStyle=css('--muted'); ctx.lineWidth=1; ctx.textAlign='right'; ctx.textBaseline='middle';
+  (o.yt||ticks(o.y[0],o.y[1],4)).forEach(v=>{ const y=Math.round(Y(v))+.5; ctx.beginPath(); ctx.moveTo(m.l,y); ctx.lineTo(w-m.r,y); ctx.stroke(); ctx.fillText(o.yf?o.yf(v):v,m.l-6,y); });
+  ctx.textBaseline='top'; (o.xt||ticks(o.x[0],o.x[1],4)).forEach(v=>{ const x=X(v); if(x<m.l-1||x>w-m.r+1) return; const s=String(o.xf?o.xf(v):v), tw=ctx.measureText(s).width; ctx.textAlign=x+tw/2>w-2?'right':x-tw/2<2?'left':'center'; ctx.fillText(s,x+tw/2>w-2?w-2:x-tw/2<2?2:x,h-m.b+6); });
+  if(o.ylab){ ctx.font='800 12px '+css('--cond'); ctx.fillStyle=css('--muted'); ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(o.ylab.toUpperCase(),4,2); }
+  if(o.xlab){ ctx.font='800 12px '+css('--cond'); ctx.fillStyle=css('--muted'); ctx.textAlign='right'; ctx.textBaseline='bottom'; ctx.fillText(o.xlab.toUpperCase(),w-m.r,h-2); }
+  ctx.font='500 12.5px '+css('--sans');
+  ctx.strokeStyle=css('--ink'); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(m.l,m.t+ph+.5); ctx.lineTo(w-m.r,m.t+ph+.5); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l,m.t-6,pw,ph+12); ctx.clip();
+  (o.xb||[]).forEach(b=>{ ctx.fillStyle=b.fill; ctx.fillRect(X(b.x0),m.t,X(b.x1)-X(b.x0),ph); if(b.label){ ctx.font='800 12px '+css('--cond'); const tx=(X(b.x0)+X(b.x1))/2, ty=m.t+ph*0.55, tw=ctx.measureText(b.label).width+8; ctx.fillStyle=css('--card'); ctx.fillRect(tx-tw/2,ty-9,tw,18); ctx.fillStyle=css('--ink'); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(b.label,tx,ty); ctx.font='500 12.5px '+css('--sans'); } });
+  (o.bars||[]).forEach(b=>{ const x0=X(b.x0)+1, x1=X(b.x1)-1; if(b.outline){ ctx.save(); ctx.setLineDash([3,3]); ctx.strokeStyle=b.color; ctx.strokeRect(x0,Y(o.y[1]),Math.max(1,x1-x0),Y(o.y[0])-Y(o.y[1])); ctx.restore(); } else { ctx.fillStyle=b.color; ctx.fillRect(x0,Y(b.y),Math.max(1,x1-x0),Y(o.y[0])-Y(b.y)); if(b.hi){ ctx.lineWidth=2.5; ctx.strokeStyle=css('--ink'); ctx.strokeRect(x0,Y(b.y),Math.max(1,x1-x0),Y(o.y[0])-Y(b.y)); } } });
+  if(o.above && o.s && o.s[0] && o.s[0].xs.length>1){ const s0=o.s[0], yl=Y(o.above.y); ctx.save(); ctx.beginPath(); ctx.rect(m.l,m.t,pw,Math.max(0,yl-m.t)); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(X(s0.xs[0]),yl); s0.xs.forEach((x,i)=>ctx.lineTo(X(x),Y(s0.ys[i]))); ctx.lineTo(X(s0.xs[s0.xs.length-1]),yl); ctx.closePath(); ctx.fillStyle=o.above.fill; ctx.fill(); ctx.restore(); }
+  (o.hl||[]).forEach(l=>{ ctx.save(); ctx.setLineDash(l.dash||[]); ctx.strokeStyle=l.color; ctx.lineWidth=l.width||1.5; ctx.beginPath(); ctx.moveTo(m.l,Y(l.y)); ctx.lineTo(w-m.r,Y(l.y)); ctx.stroke(); ctx.restore(); });
+  (o.vl||[]).forEach(l=>{ ctx.save(); ctx.setLineDash(l.dash||[]); ctx.strokeStyle=l.color; ctx.lineWidth=l.width||2; ctx.beginPath(); ctx.moveTo(X(l.x),m.t); ctx.lineTo(X(l.x),m.t+ph); ctx.stroke(); ctx.restore(); });
+  let data=(o.bars||[]).length>0;
+  (o.s||[]).forEach(s=>{ if(s.xs.length>1) data=true; ctx.save(); ctx.setLineDash(s.dash||[]); ctx.strokeStyle=s.color; ctx.lineWidth=s.width||2; ctx.lineJoin='round'; ctx.beginPath(); s.xs.forEach((x,i)=> i?ctx.lineTo(X(x),Y(s.ys[i])):ctx.moveTo(X(x),Y(s.ys[i]))); ctx.stroke(); ctx.restore(); });
+  (o.dots||[]).forEach(d=>{ data=true; const x=X(d.x), y=Y(d.y), r=d.r||5; ctx.beginPath();
+    if(d.shape==='down'){ ctx.moveTo(x-r,y-r*0.8); ctx.lineTo(x+r,y-r*0.8); ctx.lineTo(x,y+r); ctx.closePath(); }
+    else if(d.shape==='up'){ ctx.moveTo(x-r,y+r*0.8); ctx.lineTo(x+r,y+r*0.8); ctx.lineTo(x,y-r); ctx.closePath(); }
+    else if(d.shape==='diamond'){ ctx.moveTo(x,y-r); ctx.lineTo(x+r,y); ctx.lineTo(x,y+r); ctx.lineTo(x-r,y); ctx.closePath(); }
+    else ctx.arc(x,y,r,0,7);
+    ctx.fillStyle=d.color; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=d.ring||css('--card'); ctx.stroke(); });
+  ctx.restore();
+  (o.yb||[]).forEach(b=>{ if(!b.label) return; const y0=clamp(Y(b.y1),m.t,m.t+ph), y1=clamp(Y(b.y0),m.t,m.t+ph); if(y1-y0<15) return;
+    ctx.font='800 11.5px '+css('--cond'); const t=b.label.toUpperCase(), tw=ctx.measureText(t).width; ctx.fillStyle=css('--card'); ctx.globalAlpha=.85; ctx.fillRect(w-m.r-tw-8,(y0+y1)/2-8,tw+6,16); ctx.globalAlpha=1;
+    ctx.fillStyle=css('--muted'); ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(t,w-m.r-5,(y0+y1)/2); });
+  ctx.font='500 12.5px '+css('--sans');
+  if(!data){ const msg=(o.empty||'No data yet').toUpperCase(); ctx.font='700 14px '+css('--cond'); const tw=ctx.measureText(msg).width; ctx.fillStyle=css('--card'); ctx.fillRect(m.l+pw/2-tw/2-10,m.t+ph/2-12,tw+20,24); ctx.fillStyle=css('--muted'); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(msg,m.l+pw/2,m.t+ph/2); }
+  (o.labels||[]).forEach(l=>{ ctx.fillStyle=css('--ink'); ctx.font='700 12.5px '+css('--sans'); ctx.textAlign=l.align||'left'; ctx.textBaseline='bottom'; ctx.fillText(l.text,X(l.x)+(l.dx||0),clamp(Y(l.y)+(l.dy||-6),m.t+12,m.t+ph)); });
+  // notes: short boxed labels next to the points that matter
+  (o.notes||[]).slice(0,4).forEach(n=>{ ctx.font='800 12px '+css('--cond'); const t=n.text.toUpperCase(), tw=ctx.measureText(t).width+10, px=X(n.x), py=Y(n.y);
+    let bx=px-tw/2; bx=clamp(bx,m.l+2,w-m.r-tw-2); let by=py-28; if(by<m.t) by=py+12;
+    ctx.fillStyle=css('--fill'); ctx.fillRect(bx,by,tw,18); ctx.fillStyle=css('--on-fill'); ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(t,bx+5,by+9); });
+}
+// slide a finger (or move a mouse) across a chart to read exact values
+function nearestIdx(xs,v){ let b=0, d=Infinity; for(let i=0;i<xs.length;i++){ const e=Math.abs(xs[i]-v); if(e<d){ d=e; b=i; } } return b; }
+function attachInspect(c){
+  c._insp=true; c.style.touchAction='pan-y'; let active=false;
+  const show=e=>{ const o=c._o; if(!o||!o.tip) return; const r=c.getBoundingClientRect(), px=e.clientX-r.left; chart(c,o); const g=c._g; if(px<g.m.l||px>g.m.l+g.pw) return;
+    const info=o.tip(o.x[0]+(px-g.m.l)/g.pw*(o.x[1]-o.x[0])); if(!info) return;
+    const ctx=c.getContext('2d'), X=g.X(info.x);
+    ctx.save(); ctx.strokeStyle=css('--ink'); ctx.lineWidth=1.5; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(X,g.m.t); ctx.lineTo(X,g.m.t+g.ph); ctx.stroke(); ctx.restore();
+    if(info.y!=null){ ctx.beginPath(); ctx.arc(X,g.Y(info.y),6,0,7); ctx.fillStyle=css('--hv'); ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle=css('--ink'); ctx.stroke(); }
+    ctx.font='700 13px '+css('--sans'); const tw=Math.max(...info.lines.map(l=>ctx.measureText(l).width))+18, th=info.lines.length*18+10;
+    let bx=X+12; if(bx+tw>g.w-4) bx=X-12-tw; bx=Math.max(4,bx); const by=g.m.t+2;
+    ctx.fillStyle=css('--fill'); ctx.fillRect(bx,by,tw,th); ctx.fillStyle=css('--on-fill'); ctx.textAlign='left'; ctx.textBaseline='top'; info.lines.forEach((l,i)=>ctx.fillText(l,bx+9,by+6+i*18)); };
+  c.addEventListener('pointerdown',e=>{ active=true; show(e); });
+  c.addEventListener('pointermove',e=>{ if(active||e.pointerType==='mouse') show(e); });
+  const end=()=>{ active=false; }; c.addEventListener('pointerup',end); c.addEventListener('pointercancel',end);
+  c.addEventListener('pointerleave',()=>{ active=false; if(c._o) chart(c,c._o); });
+}
+function drawJolt(){
+  const tEnd=LV.on? performance.now()-LV.t0 : (LV.jt&&LV.jt.length? LV.jt[LV.jt.length-1] : 0), thr=VEH[T?T.veh:veh].thr, xs=[], ys=[]; let mx=0;
+  (LV.jt||[]).forEach((t,i)=>{ if(t>tEnd-15000){ xs.push((t-tEnd)/1000); ys.push(LV.jv[i]); mx=Math.max(mx,Math.abs(LV.jv[i])); } });
+  const lim=Math.max(6,thr*1.3,mx*1.1);
+  chart($('joltC'),{h:160,x:[-15,0],y:[-lim,lim],ml:36,ylab:'m/s²',xlab:'seconds ago',xf:v=>v===0?'now':v+' s',empty:'Start a trip',hl:[{y:thr,color:css('--ink'),dash:[5,4]},{y:-thr,color:css('--ink'),dash:[5,4]}],s:[{xs,ys,color:css('--ink'),width:1.5}],
+    labels: xs.length?[{x:-15,y:thr,text:'pothole line',dx:4,dy:-4}]:[],
+    tip: xs.length? v=>{ const i=nearestIdx(xs,v); return {x:xs[i],y:ys[i],lines:[`${(-xs[i]).toFixed(1)} s ago`,`${ys[i].toFixed(1)} m/s² (${(Math.abs(ys[i])/9.81).toFixed(2)} g)`]}; } : null});
+  $('tkJolt').textContent = !xs.length ? '' : mx>thr ? `A jolt of ${(mx/9.81).toFixed(2)} g in the last 15 s: past the pothole line.` : `Largest jolt in the last 15 s: ${(mx/9.81).toFixed(2)} g. Below the pothole line.`;
+}
+function drawProfile(){
+  const segs=T?T.segs:[], maxKm=Math.max(0.5, segs.length? segs[segs.length-1].to/1000 : 0);
+  const rated=segs.filter(g=>!g.slow), worst=rated.length? rated.reduce((a,b)=>b.score<a.score?b:a) : null, L=rated.reduce((a,g)=>a+g.len,0), goodL=rated.filter(g=>g.rate==='good').reduce((a,g)=>a+g.len,0);
+  $('tkProf').textContent = !worst ? '' : worst.score>=85 ? `Every rated stretch is Good. Best road so far.` : `Worst: ${(worst.from/1000).toFixed(1)}–${(worst.to/1000).toFixed(1)} km scored ${Math.round(worst.score)} (${rateName(worst.rate)}). ${Math.round(goodL/L*100)} % of the road is Good.`;
+  chart($('profC'),{h:190,x:[0,maxKm],y:[0,100],yt:[0,35,60,85,100],ml:34,ylab:'score',xlab:'distance from start',xt:ticks(0,maxKm,3),xf:v=>v+' km',empty:'Builds up every 100 m',
+    yb:[{y0:85,y1:100,fill:'transparent',label:'good'},{y0:60,y1:85,fill:'transparent',label:'fair'},{y0:35,y1:60,fill:'transparent',label:'poor'},{y0:0,y1:35,fill:'transparent',label:'very poor'}],
+    bars:segs.map(g=>g.slow?{x0:g.from/1000,x1:g.to/1000,color:css('--r-slow'),outline:true}:{x0:g.from/1000,x1:g.to/1000,y:g.score,color:rateColor(g.rate),hi:worst&&g===worst&&g.score<85}),
+    notes: worst&&worst.score<85? [{x:(worst.from+worst.to)/2000,y:worst.score,text:'worst '+Math.round(worst.score)}] : [],
+    tip: segs.length? v=>{ const g=segs.find(q=>v*1000>=q.from&&v*1000<=q.to)||segs[nearestIdx(segs.map(q=>(q.from+q.to)/2000),v)]; return {x:(g.from+g.to)/2000,y:g.slow?null:g.score,lines:[`${(g.from/1000).toFixed(1)}–${(g.to/1000).toFixed(1)} km`, g.slow?'Too slow to rate':`Score ${Math.round(g.score)} · ${rateName(g.rate)}`, `${g.np} pothole${g.np===1?'':'s'} · ${Math.round(g.v*3.6)} km/h`]}; } : null,
+    dots:(T?T.pots.filter(p=>!p.sb):[]).map(p=>({x:p.at/1000,y:96,color:css('--casing'),ring:css('--hv'),r:5}))});
+}
+function drawGG(){
+  const c=$('cmGG'), size=Math.min(c.clientWidth||300,340), {ctx,w,h}=setupCanvas(c,size), cx=w/2, cy=h/2, R=Math.min(w,h)/2-22, S=R/4, ink=css('--ink');
+  ctx.strokeStyle=css('--grid'); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy); ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R); ctx.stroke();
+  ctx.strokeStyle=ink; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy,S,0,7); ctx.stroke();
+  ctx.save(); ctx.setLineDash([6,5]); ctx.strokeStyle=css('--alert'); ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(cx,cy,S*HARSH,0,7); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle=ink; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke();
+  ctx.fillStyle=css('--muted'); ctx.font='700 12px '+css('--sans'); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText('forward–back',cx,cy-R-4); ctx.textBaseline='top'; ctx.fillText('4 m/s²',cx,cy+R+4);
+  ctx.save(); ctx.translate(cx+R+12,cy); ctx.rotate(Math.PI/2); ctx.textBaseline='middle'; ctx.fillText('sideways',0,0); ctx.restore();
+  const tr=LV.trail||[], tN=tr.length?tr[tr.length-1][0]:0;
+  tr.forEach(([t,x,y],i)=>{ if(i%2) return; ctx.globalAlpha=0.65*(1-(tN-t)/60000)+0.08; ctx.fillStyle=ink; ctx.beginPath(); ctx.arc(cx+clamp(x,-4,4)*S,cy-clamp(y,-4,4)*S,2.2,0,7); ctx.fill(); }); ctx.globalAlpha=1;
+  (T?T.events:[]).filter(e=>e.t>=tN-60000).forEach(e=>{ ctx.beginPath(); ctx.arc(cx+clamp(e.x,-4,4)*S,cy-clamp(e.y,-4,4)*S,6,0,7); ctx.fillStyle=css('--alert'); ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=ink; ctx.stroke(); });
+  if(tr.length){ const [,x,y]=tr[tr.length-1]; ctx.beginPath(); ctx.arc(cx+clamp(x,-4,4)*S,cy-clamp(y,-4,4)*S,8,0,7); ctx.fillStyle=css('--hv'); ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=ink; ctx.stroke(); }
+  else { ctx.fillStyle=css('--muted'); ctx.font='700 14px '+css('--cond'); ctx.textBaseline='middle'; ctx.fillText('START A TRIP',cx,cy+S*1.6); }
+}
+
+/* ---------- 3D road (orthographic, painter's order, drag to turn) ---------- */
+function View3D(canvas,h,build){ this.c=canvas; this.h=h; this.build=build; this.yaw=-0.75; this.pitch=0.62; this.home=[-0.75,0.62]; canvas.style.touchAction='none'; canvas.style.cursor='grab'; let drag=null,last=0;
+  canvas.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,yaw:this.yaw,pitch:this.pitch}; try{ canvas.setPointerCapture(e.pointerId); }catch(_){} const now=e.timeStamp||Date.now(); if(now-last<300){ [this.yaw,this.pitch]=this.home; this.draw(); } last=now; });
+  canvas.addEventListener('pointermove',e=>{ if(!drag) return; this.yaw=drag.yaw+(e.clientX-drag.x)*0.012; this.pitch=clamp(drag.pitch+(e.clientY-drag.y)*0.008,0.12,1.45); this.draw(); });
+  const end=()=>{ drag=null; }; canvas.addEventListener('pointerup',end); canvas.addEventListener('pointercancel',end); }
+View3D.prototype.draw=function(){ const {ctx,w,h}=setupCanvas(this.c,this.h), sc=this.build();
+  if(!sc||(!sc.polys.length&&!sc.lines.length)){ ctx.font='700 14px '+css('--cond'); ctx.fillStyle=css('--muted'); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(((sc&&sc.empty)||'No data yet').toUpperCase(),w/2,h/2); return; }
+  const cy=Math.cos(this.yaw), sy=Math.sin(this.yaw), cp=Math.cos(this.pitch), sp=Math.sin(this.pitch), C=sc.center, s=Math.min(w,h)/(1.9*(sc.radius||1));
+  const P=p=>{ const x=p[0]-C[0], y=p[1]-C[1], z=p[2]-C[2], xr=x*cy-y*sy, yr=x*sy+y*cy; return [w/2+xr*s, h/2+(-yr*sp-z*cp)*s, yr*cp-z*sp]; };
+  const items=[]; sc.polys.forEach(q=>{ const pp=q.p.map(P); items.push({d:pp.reduce((a,v)=>a+v[2],0)/pp.length+(q.bias||0),poly:pp,q}); });
+  sc.lines.forEach(l=>{ const a=P(l.a), b=P(l.b); items.push({d:(a[2]+b[2])/2+(l.bias||0),line:[a,b],l}); }); items.sort((a,b)=>b.d-a.d);
+  items.forEach(it=>{ if(it.poly){ ctx.beginPath(); it.poly.forEach((v,i)=>i?ctx.lineTo(v[0],v[1]):ctx.moveTo(v[0],v[1])); ctx.closePath(); ctx.fillStyle=it.q.fill; ctx.fill(); if(it.q.stroke){ ctx.strokeStyle=it.q.stroke; ctx.lineWidth=1; ctx.stroke(); } }
+    else { ctx.save(); ctx.setLineDash(it.l.dash||[]); ctx.strokeStyle=it.l.color; ctx.lineWidth=it.l.width||1.5; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(it.line[0][0],it.line[0][1]); ctx.lineTo(it.line[1][0],it.line[1][1]); ctx.stroke(); ctx.restore(); } });
+  (sc.dots||[]).forEach(d=>{ const v=P(d.p); ctx.beginPath(); ctx.arc(v[0],v[1],d.r||5,0,7); ctx.fillStyle=d.fill; ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle=d.ring; ctx.stroke(); });
+  ctx.font='800 12px '+css('--cond'); ctx.textBaseline='middle'; (sc.labels||[]).forEach(l=>{ const v=P(l.p); ctx.textAlign='center'; ctx.fillStyle=l.color||css('--muted'); ctx.fillText(l.text,v[0],v[1]+(l.dy||0)); }); };
+function shadeHex(hex,k){ const m=/^#?([0-9a-f]{6})$/i.exec(hex.trim()); if(!m) return hex; const n=parseInt(m[1],16); return `rgb(${Math.round(((n>>16)&255)*k)},${Math.round(((n>>8)&255)*k)},${Math.round((n&255)*k)})`; }
+function box3D(x,y,w,hz,fill){ const a=w/2, c=[[x-a,y-a],[x+a,y-a],[x+a,y+a],[x-a,y+a]]; const out=[{p:c.map(q=>[q[0],q[1],hz]),fill,stroke:'rgba(0,0,0,.35)',bias:-1e-4}];
+  [[0,1],[1,2],[2,3],[3,0]].forEach(([i,j],k)=>out.push({p:[[c[i][0],c[i][1],0],[c[j][0],c[j][1],0],[c[j][0],c[j][1],hz],[c[i][0],c[i][1],hz]],fill:shadeHex(fill,k%2?0.7:0.85),stroke:'rgba(0,0,0,.35)'})); return out; }
+let road3D=null;
+function roadScene(){
+  if(!T||!T.segs.length) return {polys:[],lines:[],empty:'Builds up every 100 m'};
+  const p0=T.segs[0].pts[0], kx=Math.cos(p0[0]*Math.PI/180)*111320, XY=q=>[(q[1]-p0[1])*kx,(q[0]-p0[0])*111320];
+  const all=T.segs.flatMap(g=>g.pts.map(XY)); let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; all.forEach(([x,y])=>{ x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); });
+  const ext=Math.max(x1-x0,y1-y0,150), Hh=ext*0.55, bw=Math.max(18,ext*0.06), polys=[], lines=[], dots=[], labels=[], gs=ext/6;
+  for(let gx=Math.ceil((x0-ext*0.08)/gs)*gs; gx<=x1+ext*0.08; gx+=gs) lines.push({a:[gx,y0-ext*0.08,0],b:[gx,y1+ext*0.08,0],color:css('--grid'),width:1,bias:1e6});
+  for(let gy=Math.ceil((y0-ext*0.08)/gs)*gs; gy<=y1+ext*0.08; gy+=gs) lines.push({a:[x0-ext*0.08,gy,0],b:[x1+ext*0.08,gy,0],color:css('--grid'),width:1,bias:1e6});
+  T.segs.forEach(g=>{ const pts=g.pts.map(XY); for(let i=1;i<pts.length;i++) lines.push({a:[...pts[i-1],0],b:[...pts[i],0],color:g.slow?css('--r-slow'):rateColor(g.rate),width:5,bias:1e5});
+    if(g.slow||!pts.length) return; const mid=pts[Math.floor(pts.length/2)]; polys.push(...box3D(mid[0],mid[1],bw,Math.max(Hh*0.05,(100-g.score)/100*Hh),rateColor(g.rate))); });
+  T.pots.filter(p=>!p.sb).forEach(p=>{ const [x,y]=XY([p.lat,p.lon]); lines.push({a:[x,y,0],b:[x,y,Hh*1.05],color:css('--ink'),width:1.5}); dots.push({p:[x,y,Hh*1.05],fill:css('--casing'),ring:css('--hv'),r:6}); });
+  const st=XY(T.segs[0].pts[0]), lg=T.segs[T.segs.length-1], en=XY(lg.pts[lg.pts.length-1]);
+  labels.push({p:[...st,0],text:'START',dy:14,color:css('--ink')},{p:[...en,0],text:'END',dy:14,color:css('--ink')});
+  return {polys,lines,dots,labels,center:[(x0+x1)/2,(y0+y1)/2,Hh*0.3],radius:Math.max(Math.hypot(x1-x0,y1-y0)/2,ext*0.45)};
+}
+
+/* ---------- map ---------- */
+let map=null, layer=null, follow=true;
+function ensureMap(){ if(map) return; if(!window.L){ $('mapLoad').querySelector('span').textContent='Map unavailable offline · stretches are still recorded'; $('mapLoad').querySelector('i').style.display='none'; return; }
+  map=L.map('map',{zoomControl:true}).setView([20.6,78.9],4); const tl=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  tl.on('load',()=>$('mapLoad').classList.add('gone')); layer=L.layerGroup().addTo(map); map.on('dragstart',()=>{ follow=false; }); }
+function clearMap(){ if(layer) layer.clearLayers(); follow=true; }
+function centre(f,zoom){ if(map) zoom? map.setView([f.lat,f.lon],17) : map.panTo([f.lat,f.lon]); }
+function drawSeg(g){ if(!layer||g.pts.length<2) return; L.polyline(g.pts,{color:css('--casing'),weight:12,opacity:.85,lineCap:'round',interactive:false}).addTo(layer);
+  g._pl=L.polyline(g.pts,{color:g.slow?css('--r-slow'):rateColor(g.rate),weight:8,lineCap:'round',dashArray:g.slow?'6 8':null}).addTo(layer)
+    .bindPopup(`<b>${(g.from/1000).toFixed(1)}–${(g.to/1000).toFixed(1)} km</b><br>${g.slow?'Too slow to rate':'Score '+Math.round(g.score)+' · '+rateName(g.rate)}<br>${g.np} pothole${g.np===1?'':'s'} · ${Math.round(g.v*3.6)} km/h`);
+  layer.eachLayer(l=>{ if(l.options&&l.options.radius) l.bringToFront(); }); }
+function drawPot(p){ if(!layer) return; L.circleMarker([p.lat,p.lon],{radius:p.peak/9.81>=0.6?9:7,color:css('--hv'),weight:3,fillColor:css('--casing'),fillOpacity:1}).addTo(layer).bindPopup(`<b>Pothole ${p.n}</b><br>${(p.peak/9.81).toFixed(2)} g at ${(p.at/1000).toFixed(2)} km${p.spd!=null?'<br>'+Math.round(p.spd)+' km/h':''}`); }
+function redrawMap(tr,fit){ ensureMap(); if(!layer) return; clearMap(); tr.segs.forEach(drawSeg); tr.pots.filter(p=>!p.sb).forEach(drawPot); if(fit){ const pts=tr.segs.flatMap(g=>g.pts); if(pts.length) map.fitBounds(pts,{padding:[20,20]}); } }
+
+/* ============================================================
+   REPORT
+   ============================================================ */
+function renderReport(){
+  if(!T || (!T.segs.length && !T.com.n)){ $('repEmpty').classList.remove('hide'); $('repBody').classList.add('hide'); return; }
+  $('repEmpty').classList.add('hide'); $('repBody').classList.remove('hide');
+  rescore(T); const rs=roadSummary(T), cs=comfortSummary(T), ds=driveSummary(T);
+  $('repTitle').textContent=T.name||'Trip report';
+  $('repMeta').textContent=`${new Date(T.date).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})} · ${VEH[T.veh].n} · ${fmtKm(T.dist)} · ${fmtClock(T.dur*1000)}`;
+  $('sRoad').textContent= rs.score!=null? Math.round(rs.score) : '–'; $('sRoadR').innerHTML= rs.score!=null? rateChip(rateOf(rs.score).k) : '<span class="cap">too short</span>';
+  $('sCom').textContent= cs? cs.aV.toFixed(2) : '–'; $('sComR').innerHTML= cs? `<span class="cap">m/s² · ${BANDS[bandOf(cs.aV)].short}</span>` : '';
+  $('sDrv').textContent= ds.score; const dv=driveVerdict(ds.score); $('sDrvR').innerHTML=`<span class="cap">${dv[1]}</span>`;
+  const st=$('repStack'); st.innerHTML=''; const tb=$('repShare').tBodies[0]; tb.innerHTML=''; const rng={good:'85–100',fair:'60–84',poor:'35–59',vpoor:'0–34'};
+  RATES.forEach(r=>{ const len=rs.share[r.k], sh=rs.total?len/rs.total:0; if(sh>0){ const d=document.createElement('div'); d.style.width=(sh*100)+'%'; d.style.background=rateColor(r.k); st.appendChild(d); }
+    tb.insertAdjacentHTML('beforeend',`<tr><td>${rateChip(r.k)}</td><td class="r">${rng[r.k]}</td><td class="r">${fmtKm(len)}</td><td class="r">${Math.round(sh*100)}%</td></tr>`); });
+  if(rs.slowLen){ const sh=rs.slowLen/rs.total, d=document.createElement('div'); d.style.width=(sh*100)+'%'; d.style.background=css('--r-slow'); st.appendChild(d); tb.insertAdjacentHTML('beforeend',`<tr><td>${rateChip('slow')}</td><td class="r">–</td><td class="r">${fmtKm(rs.slowLen)}</td><td class="r">${Math.round(sh*100)}%</td></tr>`); }
+  const pri=T.segs.filter(g=>!g.slow&&(g.rate==='poor'||g.rate==='vpoor')).sort((a,b)=>a.score-b.score);
+  $('repPri').tBodies[0].innerHTML= pri.length? pri.slice(0,15).map((g,i)=>`<tr><td>${i+1}</td><td>${(g.from/1000).toFixed(1)}–${(g.to/1000).toFixed(1)} km</td><td class="r">${Math.round(g.score)}</td><td>${rateChip(g.rate)}</td><td class="r">${g.np}</td><td class="r"><button class="btn2 sm" data-go="${g.i}">Map</button></td></tr>`).join('') : '<tr><td colspan="6" class="cap">No Poor or Very poor stretches. Nothing urgent.</td></tr>';
+  $('repPot').tBodies[0].innerHTML= T.pots.length? T.pots.map(p=>`<tr><td>${p.n}</td><td>${(p.at/1000).toFixed(2)} km</td><td class="r">${(p.peak/9.81).toFixed(2)} g</td><td class="r">${p.spd!=null?Math.round(p.spd)+' km/h':'–'}</td><td class="r"><button class="btn2 sm" data-sb="${p.n}" aria-pressed="${p.sb}">${p.sb?'Speed breaker':'Mark breaker'}</button></td></tr>`).join('') : '<tr><td colspan="5" class="cap">No potholes detected.</td></tr>';
+  $('svName').value=T.name||'';
+}
+document.querySelectorAll('.sum [data-goto]').forEach(b=>b.addEventListener('click',()=>showPanel(b.dataset.goto)));
+$('repPri').addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(!b) return; const g=T.segs[+b.dataset.go]; showPanel('pRoad'); redrawMap(T,false); if(map&&g.pts.length){ map.fitBounds(g.pts,{padding:[40,40],maxZoom:18}); follow=false; if(g._pl) g._pl.openPopup(); } });
+$('repPot').addEventListener('click',e=>{ const b=e.target.closest('[data-sb]'); if(!b) return; const p=T.pots.find(x=>x.n===+b.dataset.sb); p.sb=!p.sb; rescore(T); renderReport(); redrawMap(T,false); if(!LV.on) renderAll(true); });
+$('svMap').addEventListener('click',()=>{ showPanel('pRoad'); redrawMap(T,true); follow=false; });
+function save(name,text,type){ const blob=new Blob([text],{type}); try{ const file=new File([blob],name,{type}); if(navigator.canShare&&navigator.canShare({files:[file]})){ navigator.share({files:[file],title:name}).catch(()=>{}); return; } }catch(e){} const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); }
+const stamp=()=>new Date().toISOString().slice(0,16).replace(/[-:T]/g,''), f=(v,d)=>v==null||!isFinite(v)?'':(+v).toFixed(d);
+$('xSegs').addEventListener('click',()=>{ const Ls=['stretch,from_km,to_km,length_m,speed_kmh,vertical_rms_ms2,roughness_R,score,rating,potholes,start_lat,start_lon,end_lat,end_lon'];
+  T.segs.forEach(g=>{ const a=g.pts[0]||[], b=g.pts[g.pts.length-1]||[]; Ls.push([g.i+1,f(g.from/1000,3),f(g.to/1000,3),f(g.len,0),f(g.v*3.6,1),f(g.arms,3),f(g.R,3),g.slow?'':f(g.score,0),rateName(g.rate),g.np,f(a[0],6),f(a[1],6),f(b[0],6),f(b[1],6)].join(',')); });
+  Ls.push(''); Ls.push('pothole,at_km,peak_g,speed_kmh,lat,lon,speed_breaker'); T.pots.forEach(p=>Ls.push([p.n,f(p.at/1000,3),f(p.peak/9.81,3),f(p.spd,0),f(p.lat,6),f(p.lon,6),p.sb?'yes':'no'].join(',')));
+  save(`roadsense_road_${stamp()}.csv`,Ls.join('\n'),'text/csv'); });
+$('xTrip').addEventListener('click',()=>{ const rs=roadSummary(T), cs=comfortSummary(T), ds=driveSummary(T);
+  const Ls=[`trip,"${T.name||''}"`,`vehicle,${VEH[T.veh].n}`,`distance_km,${f(T.dist/1000,3)}`,`duration_s,${f(T.dur,0)}`,`road_score,${f(rs.score,0)}`,`comfort_iso_total_ms2,${f(cs&&cs.aV,3)}`,`comfort_share_ok,${f(cs&&cs.ok,3)}`,`driving_score,${ds.score}`,`speeding_s,${f(T.drv.speedMs/1000,0)}`,`speed_limit_kmh,${T.limit}`,'',
+    'harsh_move,at_km,time_s,type,peak_ms2,speed_kmh,lat,lon']; T.events.forEach(e=>Ls.push([e.n,f(e.at/1000,3),f(e.t/1000,1),e.type||'',f(e.peak,2),f(e.spd,0),f(e.lat,6),f(e.lon,6)].join(',')));
+  Ls.push(''); Ls.push('time_s,comfort_iso_total_ms2'); T.com.hist.forEach(h=>Ls.push(h.join(','))); Ls.push(''); Ls.push('time_min,gps_speed_kmh'); T.drv.trace.forEach(h=>Ls.push(h.join(',')));
+  save(`roadsense_trip_${stamp()}.csv`,Ls.join('\n'),'text/csv'); });
+$('xGeo').addEventListener('click',()=>{ const fc={type:'FeatureCollection',name:T.name||'RoadSense trip',features:[]}, col={good:'#1f9d55',fair:'#e3b505',poor:'#f06a1d',vpoor:'#d62839'};
+  T.segs.forEach(g=>fc.features.push({type:'Feature',properties:{kind:'stretch',stretch:g.i+1,from_km:+f(g.from/1000,3),score:g.slow?null:Math.round(g.score),rating:rateName(g.rate),potholes:g.np,stroke:g.slow?'#8d949e':col[g.rate]},geometry:{type:'LineString',coordinates:g.pts.map(p=>[+p[1].toFixed(6),+p[0].toFixed(6)])}}));
+  T.pots.filter(p=>!p.sb).forEach(p=>fc.features.push({type:'Feature',properties:{kind:'pothole',n:p.n,peak_g:+f(p.peak/9.81,3)},geometry:{type:'Point',coordinates:[+p.lon.toFixed(6),+p.lat.toFixed(6)]}}));
+  T.events.filter(e=>e.lat!=null).forEach(e=>fc.features.push({type:'Feature',properties:{kind:'harsh_move',n:e.n,type:e.type,peak_g:+f(e.peak/9.81,3)},geometry:{type:'Point',coordinates:[+e.lon.toFixed(6),+e.lat.toFixed(6)]}}));
+  save(`roadsense_${stamp()}.geojson`,JSON.stringify(fc),'application/geo+json'); });
+$('xPrint').addEventListener('click',()=>window.print());
+
+/* ---------- saved trips ---------- */
+const KEY='roadsense.trips.v1';
+const loadAll=()=>{ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } };
+const storeAll=a=>{ try{ localStorage.setItem(KEY,JSON.stringify(a)); return true; }catch(e){ return false; } };
+const strip=tr=>JSON.parse(JSON.stringify({...tr, segs:tr.segs.map(({_pl,...g})=>g)}));
+$('svSave').addEventListener('click',()=>{ T.name=$('svName').value.trim(); const all=loadAll().filter(x=>x.id!==T.id); all.unshift(strip(T)); $('svMsg').textContent=storeAll(all.slice(0,25))?'Saved on this phone.':'Could not save (storage full or blocked).'; renderReport(); });
+function renderSaved(){ const all=loadAll(); if(!all.length){ $('savedList').innerHTML='<div class="empty">Nothing saved yet</div>'; return; }
+  $('savedList').innerHTML=`<table><thead><tr><th>Trip</th><th class="r">Road</th><th class="r">Comfort</th><th class="r">Drive</th><th></th></tr></thead><tbody>${all.map(tr=>{ rescore(tr); const rs=roadSummary(tr), cs=comfortSummary(tr), ds=driveSummary(tr);
+    return `<tr><td><b>${tr.name||'Untitled trip'}</b><br><span class="cap">${new Date(tr.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · ${VEH[tr.veh].n} · ${fmtKm(tr.dist)}</span></td><td class="r">${rs.score!=null?Math.round(rs.score):'–'}</td><td class="r">${cs?cs.aV.toFixed(2):'–'}</td><td class="r">${ds.score}</td><td class="r"><button class="btn2 sm" data-open="${tr.id}">Open</button> <button class="btn2 sm" data-del="${tr.id}" aria-label="Delete trip">${svg(CROSS,2.6)}</button></td></tr>`; }).join('')}</tbody></table>`; }
+$('savedList').addEventListener('click',e=>{ const o=e.target.closest('[data-open]'), d=e.target.closest('[data-del]');
+  if(o && !LV.on){ T=loadAll().find(x=>x.id===+o.dataset.open); Object.assign(LV,{jt:[],jv:[],trail:[],aV:null,rz:null,rh:null}); $('howStart').classList.add('hide'); $('repBtn').disabled=false; redrawMap(T,true); renderAll(true); showPanel('pReport'); }
+  if(d){ storeAll(loadAll().filter(x=>x.id!==+d.dataset.del)); renderSaved(); } });
+
+
+/* ============================================================
+   FIT TO DRIVE: hand tremor + reaction time against a rested baseline
+   ============================================================ */
+function detrend(arr){ const n=arr.length; let sx=0,sy=0,sxx=0,sxy=0; for(let i=0;i<n;i++){ sx+=i; sy+=arr[i]; sxx+=i*i; sxy+=i*arr[i]; } const b=(n*sxy-sx*sy)/((n*sxx-sx*sx)||1), a=(sy-b*sx)/n; const o=new Float64Array(n); for(let i=0;i<n;i++) o[i]=arr[i]-(a+b*i); return o; }
+function median(a){ if(!a.length) return NaN; const s=a.slice().sort((x,y)=>x-y), m=s.length>>1; return s.length%2? s[m] : (s[m-1]+s[m])/2; }
+function analyzeTremor(buf){
+  const N=buf.t.length; if(N<64) return null; const dur=(buf.t[N-1]-buf.t[0])/1000, fs=(N-1)/dur;
+  const w=new Float64Array(N); let sw=0,sw2=0; for(let n=0;n<N;n++){ w[n]=0.5-0.5*Math.cos(2*Math.PI*n/(N-1)); sw+=w[n]; sw2+=w[n]*w[n]; }
+  const mw2=sw2/N, fmax=Math.min(fs/2,25), K=Math.floor(fmax*N/fs), hi=Math.min(20,fs/2), amp2=new Float64Array(K+1), axisBand=[0,0,0], det=[]; let band=0;
+  ['x','y','z'].forEach((ax,ai)=>{ const x=detrend(buf[ax]); det.push(x); const xw=new Float64Array(N); for(let n=0;n<N;n++) xw[n]=x[n]*w[n];
+    for(let k=1;k<=K;k++){ let re=0,im=0; const wk=2*Math.PI*k/N; for(let n=0;n<N;n++){ re+=xw[n]*Math.cos(wk*n); im-=xw[n]*Math.sin(wk*n); } const p=re*re+im*im, f=k*fs/N; amp2[k]+=(2*Math.sqrt(p)/sw)**2; if(f>=3&&f<=hi){ const e=2*p/(N*N*mw2); band+=e; axisBand[ai]+=e; } } });
+  const freqs=[], amp=[]; let pk=0, pkA=-1; for(let k=1;k<=K;k++){ const f=k*fs/N; freqs.push(f); amp.push(Math.sqrt(amp2[k])); if(f>=3&&f<=hi&&amp2[k]>pkA){ pkA=amp2[k]; pk=f; } }
+  const ai=axisBand.indexOf(Math.max(...axisBand)), x=det[ai], half=Math.max(1,Math.round(fs/6)), tr=[], tt=[];
+  for(let n=0;n<N;n++){ let s2=0,c=0; for(let j=Math.max(0,n-half);j<=Math.min(N-1,n+half);j++){ s2+=x[j]; c++; } tr.push(x[n]-s2/c); tt.push((buf.t[n]-buf.t[0])/1000); }
+  const hp=arr=>{ const d=detrend(arr), o=[]; for(let n=0;n<N;n++){ let s2=0,c=0; for(let j=Math.max(0,n-half);j<=Math.min(N-1,n+half);j++){ s2+=d[j]; c++; } o.push(d[n]-s2/c); } return o; };
+  const px=hp(buf.x), py=hp(buf.y);
+  return {N,fs,rms:Math.sqrt(band),peakHz:pk,peakAmp:Math.sqrt(Math.max(0,pkA)),freqs,amp,trace:{t:tt,y:tr},dur,px,py};
+}
+const TR={state:'idle', buf:null, res:null, t0:0, trail:[], ex:null, ey:null};
+// steadiness zones: relative to the rested baseline when one is saved (same 1.5× rule as the verdict),
+// otherwise a wide rough guide for a phone held at arm's length
+let TZ={steady:0.15, normal:0.40, max:0.60, rel:false, names:['Steady','Normal','Shaky']};
+function zonesFor(base){
+  TZ = base && base.tremor ? {steady:base.tremor*1.2, normal:base.tremor*1.5, max:base.tremor*2.5, rel:true, names:['Like rested','A bit shakier','Much shakier']}
+                           : {steady:0.15, normal:0.40, max:0.60, rel:false, names:['Steady','Normal','Shaky']};
+  return TZ;
+}
+const RT={state:'idle', trials:[], timer:null, t0:0, tGo:0, N:5};
+// rough bands for a phone tap test (includes screen and touch delay); the baseline gives the personal comparison
+const RT_BANDS=[{max:250,name:'Fast',k:'good'},{max:350,name:'Typical',k:'fair'},{max:500,name:'Slow',k:'poor'},{max:Infinity,name:'Very slow',k:'vpoor'}];
+const rtBand=v=>RT_BANDS.find(b=>v<b.max);
+const FIT_KEY='roadsense.fit.v1';
+const getFitBase=()=>{ try{ return JSON.parse(localStorage.getItem(FIT_KEY)||'null'); }catch(e){ return null; } };
+document.querySelectorAll('.mode [data-dm]').forEach(b=>b.addEventListener('click',()=>{ const fit=b.dataset.dm==='fit';
+  document.querySelectorAll('.mode [data-dm]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  $('drvTrip').classList.toggle('hide',fit); $('drvFit').classList.toggle('hide',!fit); if(fit){ drawTarget(); renderTremor(); renderRT(); renderFit(); } else if(T) renderAll(true); else emptyCharts(); }));
+$('trBtn').addEventListener('click',()=>{
+  if(TR.state!=='idle') return;
+  if(LV.on){ $('trStatus').innerHTML='<b>Stop the trip first.</b> The tremor test uses the same motion sensor.'; return; }
+  const perm=askMotion(); TR.state='count'; $('trBtn').disabled=true; $('trStop').disabled=false; $('trStatus').textContent=''; keepAwake(true);
+  setBand('bFit',{state:'rec',label:'Get ready',num:'–'}); bandProg('bFit','indef');
+  perm.then(()=>{ const t0=performance.now();
+    const tick=()=>{ if(TR.state==='idle') return; const el=(performance.now()-t0)/1000;
+      if(TR.state==='count'){ const left=Math.ceil(3-el); $('trCount').textContent= left>0 ? 'Hold still · '+left : 'Recording'; if(el>=3){ TR.state='rec'; TR.buf={t:[],x:[],y:[],z:[]}; TR.trail=[]; TR.ex=null; TR.ey=null; TR.t0=performance.now(); } }
+      else { const r=(performance.now()-TR.t0)/1000; $('trCount').textContent=Math.max(0,10-r).toFixed(1)+' s left'; $('trProg').style.width=Math.min(100,r*10)+'%'; bandProg('bFit',r/10); setBand('bFit',{label:'Recording · keep the dot in the middle'}); drawTarget(); if(r>=10){ finishTremor(); return; } }
+      requestAnimationFrame(tick); };
+    requestAnimationFrame(tick); }).catch(e=>{ TR.state='idle'; trReset(); $('trStatus').innerHTML='<b>'+e.message+'</b>'; });
+});
+function trReset(){ $('trBtn').disabled=false; $('trStop').disabled=true; $('trCount').textContent=''; $('trProg').style.width='0'; bandProg('bFit',null); keepAwake(false); }
+$('trStop').addEventListener('click',()=>{ TR.state='idle'; trReset(); setBand('bFit',{state:TR.res?'done':'idle',label:TR.res?'Hand tremor':'Hand tremor · ready',num:TR.res?TR.res.rms.toFixed(3):'–'}); $('trStatus').textContent='Test stopped.'; });
+function finishTremor(){ TR.state='idle'; trReset(); const r=analyzeTremor(TR.buf); if(!r){ setBand('bFit',{state:'alert',label:'Too few readings',num:'–'}); $('trStatus').innerHTML='<b>Too few readings.</b> Check motion access and try again.'; return; }
+  TR.res=r; $('trBtn').textContent='Test again'; $('trStatus').textContent=`${r.N} readings over ${r.dur.toFixed(1)} s.`; renderTremor(); renderFit(); }
+function drawTarget(){
+  // square-root radial scale: the steady and normal zones get room, a very shaky hand still fits
+  const base=getFitBase(); zonesFor(base);
+  const c=$('trTarget'), size=Math.min(c.clientWidth||300,320), {ctx,w,h}=setupCanvas(c,size), cx=w/2, cy=h/2, R=Math.min(w,h)/2-16, ink=css('--ink');
+  const rad=v=>R*Math.sqrt(clamp(v,0,TZ.max)/TZ.max);
+  const P=(x,y)=>{ const r=Math.hypot(x,y), k=r>0? rad(r)/r : 0; return [cx+x*k, cy-y*k]; };
+  [[TZ.max,css('--r-poor')],[TZ.normal,css('--r-fair')],[TZ.steady,css('--r-good')]].forEach(([v,col])=>{ ctx.beginPath(); ctx.arc(cx,cy,rad(v),0,7); ctx.fillStyle=col; ctx.globalAlpha=.26; ctx.fill(); ctx.globalAlpha=1; ctx.lineWidth=2; ctx.strokeStyle=col; ctx.stroke(); });
+  ctx.strokeStyle=css('--grid'); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy); ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R); ctx.stroke();
+  ctx.font='800 12px '+css('--cond'); ctx.fillStyle=ink; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(TZ.names[0].toUpperCase(),cx,cy+rad(TZ.steady)*0.62); ctx.fillText(TZ.names[1].toUpperCase(),cx,cy+(rad(TZ.steady)+rad(TZ.normal))/2); ctx.fillText(TZ.names[2].toUpperCase(),cx,cy+(rad(TZ.normal)+R)/2);
+  const tag=(r,ang,text,bg,fg)=>{ const x=cx+Math.cos(ang)*r, y=cy-Math.sin(ang)*r; ctx.font='800 12px '+css('--cond'); const tw=ctx.measureText(text).width+10, bx=clamp(x+(Math.cos(ang)>0?6:-tw-6),2,w-tw-2), by=clamp(y-(Math.sin(ang)>0?20:-4),2,h-20);
+    ctx.strokeStyle=ink; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(bx+(Math.cos(ang)>0?0:tw),by+9); ctx.stroke(); ctx.fillStyle=bg||css('--fill'); ctx.fillRect(bx,by,tw,18); if(bg){ ctx.strokeRect(bx,by,tw,18); } ctx.fillStyle=fg||css('--on-fill'); ctx.textAlign='left'; ctx.fillText(text,bx+5,by+9); };
+  if(base && base.tremor){ ctx.save(); ctx.setLineDash([6,5]); ctx.strokeStyle=ink; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(cx,cy,rad(base.tremor*1.41),0,7); ctx.stroke(); ctx.restore(); }
+  if(TR.state==='rec'){ const tr=TR.trail; tr.forEach(([x,y],i)=>{ const [a,b]=P(x,y); ctx.globalAlpha=0.15+0.85*i/tr.length; ctx.beginPath(); ctx.arc(a,b,2.8,0,7); ctx.fillStyle=ink; ctx.fill(); }); ctx.globalAlpha=1;
+    if(tr.length){ const [a,b]=P(...tr[tr.length-1]); ctx.beginPath(); ctx.arc(a,b,10,0,7); ctx.fillStyle=css('--hv'); ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=ink; ctx.stroke(); } return; }
+  const r=TR.res;
+  if(!r){ ctx.fillStyle=css('--muted'); ctx.font='800 13px '+css('--cond'); ctx.textAlign='center'; ctx.fillText("YOUR HAND'S WOBBLE SHOWS HERE",cx,cy-R*0.86); return; }
+  for(let i=0;i<r.px.length;i+=2){ const [a,b]=P(r.px[i],r.py[i]); ctx.globalAlpha=.5; ctx.beginPath(); ctx.arc(a,b,2.2,0,7); ctx.fillStyle=ink; ctx.fill(); } ctx.globalAlpha=1;
+  // "you now" ring in the colour of its zone, with an ink casing so it stands out on the matching fill
+  const z=tzone(r.rms), zc=rateColor(z[0]);
+  ctx.beginPath(); ctx.arc(cx,cy,rad(r.rms*1.41),0,7); ctx.lineWidth=8; ctx.strokeStyle=ink; ctx.stroke(); ctx.lineWidth=4.5; ctx.strokeStyle=zc; ctx.stroke();
+  tag(rad(r.rms*1.41),Math.PI/4,`YOU NOW ${r.rms.toFixed(3)} · ${z[1].toUpperCase()}`,zc,'#0e1318');
+  if(base && base.tremor) tag(rad(base.tremor*1.41),-3*Math.PI/4,'RESTED '+base.tremor.toFixed(3));
+}
+const tzone=v=> v<TZ.steady ? ['good',TZ.names[0]] : v<TZ.normal ? ['fair',TZ.names[1]] : ['poor',TZ.names[2]];
+function renderTremor(){
+  const r=TR.res; if(!r) return; $('trOut').classList.remove('hide');
+  setBand('bFit',{state:'done',label:'Hand tremor',num:r.rms.toFixed(3)});
+  $('trRms').textContent=r.rms.toFixed(3); $('trPk').textContent=r.peakHz.toFixed(1); $('trFs').textContent=Math.round(r.fs);
+  const base=getFitBase(), inZone=r.peakHz>=8&&r.peakHz<=12, slow=r.peakHz>=4&&r.peakHz<7;
+  $('tkSpec').textContent = `Main beat at ${r.peakHz.toFixed(1)} Hz: ${inZone?'inside the normal 8–12 Hz range.':slow?'slower than the normal 8–12 Hz range. Repeat the test; if it stays there, ask a doctor.':'outside the usual 8–12 Hz range. Repeat the test.'}${base&&base.tremor?` Shake is ${(r.rms/base.tremor).toFixed(1)}× your baseline.`:''}`;
+  drawTarget();
+  zonesFor(base); const z=tzone(r.rms); $('trPin').style.left=(clamp(r.rms/TZ.max,0,1)*100)+'%';
+  const fr=[TZ.steady, TZ.normal-TZ.steady, TZ.max-TZ.normal].map(v=>v/TZ.max*100);
+  $('trZ').style.gridTemplateColumns=$('trZL').style.gridTemplateColumns=fr.map(v=>v.toFixed(1)+'fr').join(' ');
+  $('trZL').innerHTML=TZ.names.map(n=>`<span>${n}</span>`).join('');
+  $('trZCap').innerHTML = TZ.rel
+    ? `Zones come from your rested baseline (${base.tremor.toFixed(3)} m/s²): like rested up to 1.2×, a bit shakier up to 1.5×, much shakier beyond. The same 1.5× rule decides Fit to drive. The dashed tick is your baseline.`
+    : `Rough guide for a phone at arm's length: steady &lt; 0.15, normal 0.15–0.40, shaky &gt; 0.40 m/s² (3–20 Hz). Hands and phones differ, so <b>save a rested baseline</b>: the zones then come from you.`;
+  const old=$('trScale').querySelector('.base'); if(old) old.remove();
+  if(base&&base.tremor) $('trScale').insertAdjacentHTML('beforeend',`<span class="base" style="left:${(clamp(base.tremor/TZ.max,0,1)*100).toFixed(1)}%"></span>`);
+  $('tkGauge').textContent= TZ.rel ? `${z[1]}: ${r.rms.toFixed(3)} m/s², ${(r.rms/base.tremor).toFixed(1)}× your rested ${base.tremor.toFixed(3)}.` : `${z[1]} (rough guide): ${r.rms.toFixed(3)} m/s² of shake. Save a rested baseline for a personal comparison.`;
+  const fmax=r.freqs[r.freqs.length-1]||25, keep=r.freqs.map((f,i)=>f>=2?i:-1).filter(i=>i>=0), fx=keep.map(i=>r.freqs[i]), fa=keep.map(i=>r.amp[i]), top=Math.max(...fa,...(base&&base.spec?base.spec.a:[0]))*1.3||0.01;
+  chart($('trSpecC'),{h:190,x:[2,fmax],xt:[2,5,10,15,20,25].filter(v=>v<=fmax),y:[0,top],ml:48,ylab:'m/s²',xlab:'frequency (Hz)',xf:v=>v,yf:v=>v.toFixed(top<0.1?3:2),
+    xb:[{x0:4,x1:7,fill:css('--over'),label:'4–7'},{x0:8,x1:Math.min(12,fmax),fill:css('--zone'),label:'NORMAL 8–12'}],
+    s:[...(base&&base.spec?[{xs:base.spec.f,ys:base.spec.a,color:css('--muted'),width:2,dash:[5,4]}]:[]),{xs:fx,ys:fa,color:css('--ink'),width:2.4}],
+    dots:[{x:r.peakHz,y:r.peakAmp,color:css('--alert'),ring:css('--ink'),r:6}], notes:[{x:r.peakHz,y:r.peakAmp,text:'main beat '+r.peakHz.toFixed(1)+' Hz'}],
+    tip:v=>{ const i=nearestIdx(fx,v); return {x:fx[i],y:fa[i],lines:[`${fx[i].toFixed(1)} Hz`,`${fa[i].toFixed(4)} m/s²`]}; }});
+  const lim=Math.max(0.05,...r.trace.y.map(Math.abs))*1.1;
+  $('tkTrace').textContent=`Typical shake ±${(r.rms*1.41).toFixed(3)} m/s²: ${tzone(r.rms)[1].toLowerCase()}${TZ.rel?'':' (rough guide)'}.`;
+  chart($('trTraceC'),{h:150,x:[0,10],y:[-lim,lim],ml:48,ylab:'m/s²',xlab:'seconds',xf:v=>v+' s',yf:v=>v.toFixed(2),s:[{xs:r.trace.t,ys:r.trace.y,color:css('--ink'),width:1.5}]});
+}
+const pad=$('pad');
+function padSet(cls,text){ pad.className='pad '+(cls||''); pad.textContent=text; }
+function rtNext(){ RT.state='wait'; padSet('wait','Wait for green…'); clearTimeout(RT.timer);
+  RT.timer=setTimeout(()=>{ RT.state='go'; RT.t0=0; padSet('go','Tap!'); RT.tGo=performance.now(); requestAnimationFrame(()=>requestAnimationFrame(ts=>{ if(!RT.t0) RT.t0=ts; })); },1500+Math.random()*2500); }
+pad.addEventListener('pointerdown',e=>{ e.preventDefault(); let ts=e.timeStamp; if(!ts||ts>1e11) ts=performance.now();
+  switch(RT.state){
+    case 'idle': case 'done': RT.trials=[]; $('rtStatus').textContent='Try 1 of '+RT.N; rtNext(); break;
+    case 'wait': clearTimeout(RT.timer); RT.state='early'; padSet('early','Too soon!\nTap to redo this try'); break;
+    case 'early': case 'between': $('rtStatus').textContent='Try '+(RT.trials.length+1)+' of '+RT.N; rtNext(); break;
+    case 'go': { const rt=ts-(RT.t0||RT.tGo); if(rt<100){ RT.state='early'; padSet('early','That was a guess\nTap to redo'); break; }
+      RT.trials.push(rt); renderRT();
+      if(RT.trials.length<RT.N){ RT.state='between'; padSet('',Math.round(rt)+' ms\nTap for the next try'); }
+      else { RT.state='done'; padSet('',`Median ${Math.round(median(RT.trials))} ms\nTap to test again`); $('rtStatus').textContent='Done.'; renderFit(); } break; } } });
+pad.addEventListener('contextmenu',e=>e.preventDefault());
+function renderRT(){
+  const t=RT.trials; if(!t.length) return; $('rtOut').classList.remove('hide');
+  const md=median(t), base=getFitBase(), spread=Math.max(...t)-Math.min(...t);
+  $('rMed').textContent=Math.round(md); $('rBest').textContent=Math.round(Math.min(...t)); $('rSpread').textContent=Math.round(spread);
+  $('tkRt').textContent=`${rtBand(md).name}: median ${Math.round(md)} ms over ${t.length} tr${t.length===1?'y':'ies'}${t.length>1?`, spread ${Math.round(spread)} ms${spread>150?' (inconsistent; a sign of tiredness)':''}`:''}.${base&&base.rt?` ${md-base.rt>=0?Math.round(md-base.rt)+' ms slower':Math.round(base.rt-md)+' ms faster'} than your baseline.`:''}`;
+  const ymax=Math.max(600,...t,base&&base.rt||0)*1.12, hl=[{y:md,color:css('--ink'),width:2.5}]; if(base&&base.rt) hl.push({y:base.rt,color:css('--muted'),width:2,dash:[5,4]});
+  chart($('rtC'),{h:210,x:[0.4,RT.N+1.2],xt:Array.from({length:RT.N},(_,i)=>i+1),y:[0,ymax],ml:44,ylab:'ms',xlab:'try',xf:v=>'#'+v,yf:v=>v.toFixed(0),
+    yb:RT_BANDS.map((b,i)=>({y0:i?RT_BANDS[i-1].max:0,y1:Math.min(b.max,ymax),fill:rateColor(b.k)+'30',label:b.name})),
+    bars:t.map((v,i)=>({x0:i+0.62,x1:i+1.38,y:v,color:rateColor(rtBand(v).k),hi:true})), hl,
+    labels:t.map((v,i)=>({x:i+1,y:v,text:String(Math.round(v)),align:'center'})),
+    tip:v=>{ const i=clamp(Math.round(v)-1,0,t.length-1); return {x:i+1,y:t[i],lines:[`Try ${i+1}`,`${Math.round(t[i])} ms · ${rtBand(t[i]).name}`]}; }});
+  // reaction distance: how far the car travels before braking even starts
+  const sp=[30,50,80], lim=+$('limit').value; if(lim>0 && !sp.includes(lim)) sp.push(lim); sp.sort((a,b)=>a-b);
+  const dist=v=>v/3.6*md/1000, dmax=dist(sp[sp.length-1])*1.1, d50=dist(50);
+  $('tkRtD').textContent=`At 50 km/h the car moves ${d50.toFixed(1)} m (${(d50/4).toFixed(1)} car lengths) before your foot moves.${base&&base.rt?` That's ${Math.abs(d50-50/3.6*base.rt/1000).toFixed(1)} m ${md>=base.rt?'more':'less'} than when rested.`:''}`;
+  $('rtDist').innerHTML=sp.map(v=>{ const d=dist(v); return `<div class="bar"><span class="t">${v} km/h</span><span class="track"><span class="f" style="width:${(d/dmax*72).toFixed(1)}%;background:${rateColor(rtBand(md).k)}"></span><span>${d.toFixed(1)} m</span></span></div>`; }).join('');
+}
+function fitNow(){ const r=TR.res; let spec=null; if(r){ const f=[],a=[]; r.freqs.forEach((x,i)=>{ if(x>=2 && i%2===0){ f.push(+x.toFixed(2)); a.push(+r.amp[i].toFixed(5)); } }); spec={f,a}; }
+  return {tremor:r?r.rms:null, spec, rt:RT.state==='done'&&RT.trials.length?median(RT.trials):null, at:new Date().toISOString()}; }
+function pairRow(label,unit,bv,nv,dec){ if(nv==null&&bv==null) return ''; const mx=Math.max(bv||0,nv||0)*1.15||1; let delta=''; if(bv!=null&&nv!=null){ const p=(nv-bv)/bv*100; delta=`${p>=0?'+':''}${Math.round(p)}% vs baseline`; }
+  const bar=(lab,v,cls)=> v==null?'' : `<div class="bar"><span class="t">${lab}</span><span class="track"><span class="f ${cls}" style="width:${Math.max(1,v/mx*72)}%"></span><span>${v.toFixed(dec)} ${unit}</span></span></div>`;
+  return `<div class="pair"><div class="lab">${label}<span>${delta}</span></div>${bar('Baseline',bv,'base')}${bar('Now',nv,'now')}</div>`; }
+function renderFit(){
+  const c=fitNow(), b=getFitBase(), have=c.tremor!=null||c.rt!=null;
+  $('fitSave').disabled=!have; $('fitClear').disabled=!b;
+  if(!have&&!b){ $('fitCmp').innerHTML='<p class="cap">Do both tests, then save them as your rested baseline.</p>'; return; }
+  let html= b? `<p class="cap">Baseline saved ${new Date(b.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}. Both bars share one scale.</p>` : '<p class="cap">No baseline yet. If you are rested now, tap Save as baseline.</p>';
+  html+=pairRow('Hand shake','m/s²',b&&b.tremor,c.tremor,3)+pairRow('Reaction time (median)','ms',b&&b.rt,c.rt,0);
+  if(b && ((b.tremor&&c.tremor)||(b.rt&&c.rt))){ const flags=[]; if(b.tremor&&c.tremor&&c.tremor/b.tremor>=1.5) flags.push(`hands shake ${(c.tremor/b.tremor).toFixed(1)}× as much`); if(b.rt&&c.rt&&c.rt-b.rt>=40) flags.push(`reactions are ${Math.round(c.rt-b.rt)} ms slower`);
+    const v= flags.length? ['fail','Take a break first',`Compared with your rested self, your ${flags.join(' and your ')}.`] : ['pass','Fit to drive','No sign of extra shake or slower reactions.'];
+    html+=`<div class="callout">${verdict(v[0],v[1])}<div style="margin-top:6px">${v[2]}</div></div>`; $('mFit').innerHTML=`${verdict(v[0],v[1])} <span style="display:block;margin-top:6px">${v[2]}</span>`; }
+  $('fitCmp').innerHTML=html;
+}
+$('fitSave').addEventListener('click',()=>{ try{ localStorage.setItem(FIT_KEY,JSON.stringify(fitNow())); }catch(e){} renderFit(); renderRT(); renderTremor(); });
+$('fitClear').addEventListener('click',()=>{ try{ localStorage.removeItem(FIT_KEY); }catch(e){} renderFit(); renderRT(); });
+
+/* ---------- tabs, vehicle, theme, start-up ---------- */
+function showPanel(id,keep){
+  tab=id; document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id===id));
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.p===id)));
+  if(keep!==true) window.scrollTo(0,0);
+  if(id==='pRoad'){ if(map) setTimeout(()=>map.invalidateSize(),60); if(T) renderAll(true); else { drawJolt(); drawProfile(); } road3D.draw(); }
+  if(id==='pComfort'){ if(T) renderAll(true); else { drawGG(); emptyCharts(); } }
+  if(id==='pDrive'){ if(T){ renderAll(true); setTimeout(()=>{ if(dmap) dmap.invalidateSize(); drawDMap(true); },80); } else { emptyCharts(); drawDriveGauge(0,false); } }
+  if(id==='pReport') renderReport(); if(id==='pSaved') renderSaved();
+}
+function emptyCharts(){ chart($('cmTripC'),{h:170,x:[0,60],y:[0,1.2],empty:'Start a trip'}); chart($('dSpdC'),{h:160,x:[0,1],y:[0,60],empty:'Start a trip'}); drawGG(); }
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showPanel(b.dataset.p)));
+document.querySelectorAll('.vehs button').forEach(b=>b.addEventListener('click',()=>{ if(LV.on) return; veh=b.dataset.veh; document.querySelectorAll('.vehs button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); try{ localStorage.setItem('roadsense.veh',veh); }catch(e){} }));
+function paintStatic(){
+  $('legend').innerHTML=RATES.map(r=>`<span><i style="background:${rateColor(r.k)}"></i>${r.name}</span>`).join('')+`<span><i style="background:${css('--r-slow')}"></i>Too slow</span><span><i class="pot"></i>Pothole</span>`;
+  const sc=$('cmScale'); sc.querySelectorAll('div').forEach(d=>d.remove()); for(let i=0;i<6;i++){ const d=document.createElement('div'); d.style.background=bandColor(i); sc.appendChild(d); }
+  document.querySelectorAll('.theme button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.theme===document.documentElement.dataset.palette)));
+  const m=document.querySelector('meta[name="theme-color"]'); if(m) m.content=css('--shell');
+}
+document.querySelectorAll('.theme button').forEach(b=>b.addEventListener('click',()=>{ document.documentElement.dataset.palette=b.dataset.theme; try{ localStorage.setItem('fieldkit.theme',b.dataset.theme); }catch(e){} for(const k in CSSV) delete CSSV[k]; paintStatic(); if(T) redrawMap(T,false); showPanel(tab,true); }));
+(function init(){
+  if(!window.isSecureContext) $('secure').classList.remove('hide');
+  try{ const v=localStorage.getItem('roadsense.veh'); if(v&&VEH[v]){ veh=v; document.querySelectorAll('.vehs button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.veh===v))); } }catch(e){}
+  road3D=new View3D($('road3dC'),300,roadScene);
+  paintStatic(); ensureMap(); showPanel('pRoad'); $('mRoad').textContent='';
+  let rz; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>showPanel(tab,true),150); });
+})();
+</script>
+</body>
+</html>
